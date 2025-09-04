@@ -23,6 +23,7 @@ async function bootstrap() {
     .setDescription('API documentation for 4KidStudy learning platform')
     .setVersion('1.0')
     .addTag('topics', 'Topic management endpoints')
+    .addTag('flashcards', 'Flashcard management endpoints')
     .addTag('lessons', 'Lesson management endpoints')
     .addTag('exercises', 'Exercise management endpoints')
     .addTag('users', 'User management endpoints')
