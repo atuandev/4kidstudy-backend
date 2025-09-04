@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { FlashcardController } from './flashcard.controller';
 import { FlashcardService } from './flashcard.service';
-import { PrismaModule } from '../modules/prisma/prisma.module';
+import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
   imports: [PrismaModule],
