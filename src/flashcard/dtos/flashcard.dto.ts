@@ -1,5 +1,13 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { IsString, IsNumber, IsOptional, IsBoolean, Min, IsInt } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PartialType } from '@nestjs/mapped-types';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsBoolean,
+  Min,
+  IsInt,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateFlashcardDto {
@@ -74,7 +82,7 @@ export class CreateFlashcardDto {
   @IsNumber()
   @Min(0)
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }) => Number.parseInt(String(value), 10))
   order?: number;
 
   @ApiPropertyOptional({
@@ -163,7 +171,7 @@ export class FlashcardWithTopicDto extends FlashcardResponseDto {
       id: { type: 'number' },
       title: { type: 'string' },
       grade: { type: 'string' },
-    }
+    },
   })
   topic: {
     id: number;

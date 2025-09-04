@@ -28,9 +28,8 @@ async function bootstrap() {
     .addTag('exercises', 'Exercise management endpoints')
     .addTag('users', 'User management endpoints')
     .build();
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document, {
+  const document = SwaggerModule.createDocument(app as any, config);
+  SwaggerModule.setup('api/docs', app as any, document, {
     swaggerOptions: {
       persistAuthorization: true,
     },
@@ -39,6 +38,8 @@ async function bootstrap() {
   await app.listen(process.env.PORT ?? 3001);
   const port = process.env.PORT ?? 3001;
   console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Swagger documentation available at: http://localhost:${port}/api/docs`);
+  console.log(
+    `Swagger documentation available at: http://localhost:${port}/api/docs`,
+  );
 }
 bootstrap();

@@ -1,6 +1,15 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../modules/prisma/prisma.service';
-import { CreateFlashcardDto, UpdateFlashcardDto, FlashcardBulkCreateDto } from './dtos/flashcard.dto';
+import { Prisma } from '@prisma/client';
+import {
+  CreateFlashcardDto,
+  UpdateFlashcardDto,
+  FlashcardBulkCreateDto,
+} from './dtos/flashcard.dto';
 
 @Injectable()
 export class FlashcardService {
@@ -13,7 +22,9 @@ export class FlashcardService {
     });
 
     if (!topic) {
-      throw new NotFoundException(`Topic with ID ${createFlashcardDto.topicId} not found`);
+      throw new NotFoundException(
+        `Topic with ID ${createFlashcardDto.topicId} not found`,
+      );
     }
 
     return this.prisma.flashcard.create({
@@ -37,19 +48,26 @@ export class FlashcardService {
     });
 
     if (!topic) {
-      throw new NotFoundException(`Topic with ID ${flashcardBulkCreateDto.topicId} not found`);
+      throw new NotFoundException(
+        `Topic with ID ${flashcardBulkCreateDto.topicId} not found`,
+      );
     }
 
-    if (!flashcardBulkCreateDto.flashcards || flashcardBulkCreateDto.flashcards.length === 0) {
+    if (
+      !flashcardBulkCreateDto.flashcards ||
+      flashcardBulkCreateDto.flashcards.length === 0
+    ) {
       throw new BadRequestException('Flashcards array cannot be empty');
     }
 
     // Prepare data with topicId
-    const flashcardsData = flashcardBulkCreateDto.flashcards.map((flashcard, index) => ({
-      ...flashcard,
-      topicId: flashcardBulkCreateDto.topicId,
-      order: flashcard.order ?? index,
-    }));
+    const flashcardsData = flashcardBulkCreateDto.flashcards.map(
+      (flashcard, index) => ({
+        ...flashcard,
+        topicId: flashcardBulkCreateDto.topicId,
+        order: flashcard.order ?? index,
+      }),
+    );
 
     return this.prisma.$transaction(async (tx) => {
       const createdFlashcards = [];
@@ -73,7 +91,7 @@ export class FlashcardService {
   }
 
   async findAll(topicId?: number, isActive?: boolean, search?: string) {
-    const where: any = {};
+    const where: Prisma.FlashcardWhereInput = {};
 
     if (topicId !== undefined) {
       where.topicId = topicId;
@@ -103,11 +121,7 @@ export class FlashcardService {
           },
         },
       },
-      orderBy: [
-        { topicId: 'asc' },
-        { order: 'asc' },
-        { createdAt: 'desc' }
-      ],
+      orderBy: [{ topicId: 'asc' }, { order: 'asc' }, { createdAt: 'desc' }],
     });
   }
 
@@ -121,7 +135,7 @@ export class FlashcardService {
       throw new NotFoundException(`Topic with ID ${topicId} not found`);
     }
 
-    const where: any = { topicId };
+    const where: Prisma.FlashcardWhereInput = { topicId };
 
     if (isActive !== undefined) {
       where.isActive = isActive;
@@ -138,10 +152,7 @@ export class FlashcardService {
           },
         },
       },
-      orderBy: [
-        { order: 'asc' },
-        { createdAt: 'desc' }
-      ],
+      orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
     });
   }
 
@@ -178,7 +189,9 @@ export class FlashcardService {
       });
 
       if (!topic) {
-        throw new NotFoundException(`Topic with ID ${updateFlashcardDto.topicId} not found`);
+        throw new NotFoundException(
+          `Topic with ID ${updateFlashcardDto.topicId} not found`,
+        );
       }
     }
 
@@ -216,8 +229,8 @@ export class FlashcardService {
   }
 
   async getFlashcardStats(topicId?: number) {
-    const where: any = {};
-    
+    const where: Prisma.FlashcardWhereInput = {};
+
     if (topicId !== undefined) {
       where.topicId = topicId;
     }
@@ -231,11 +244,11 @@ export class FlashcardService {
     });
 
     const totalActive = stats
-      .filter(stat => stat.isActive)
+      .filter((stat) => stat.isActive)
       .reduce((sum, stat) => sum + stat._count.id, 0);
 
     const totalInactive = stats
-      .filter(stat => !stat.isActive)
+      .filter((stat) => !stat.isActive)
       .reduce((sum, stat) => sum + stat._count.id, 0);
 
     return {
@@ -265,7 +278,9 @@ export class FlashcardService {
     });
 
     if (flashcards.length !== flashcardIds.length) {
-      throw new BadRequestException('Some flashcard IDs are invalid or do not belong to this topic');
+      throw new BadRequestException(
+        'Some flashcard IDs are invalid or do not belong to this topic',
+      );
     }
 
     // Update the order

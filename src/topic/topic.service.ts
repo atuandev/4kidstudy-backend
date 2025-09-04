@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../modules/prisma/prisma.service';
 import { CreateTopicDto, UpdateTopicDto, GradeLevel } from './dtos/topic.dto';
 
@@ -13,22 +14,19 @@ export class TopicService {
   }
 
   async findAll(grade?: GradeLevel, isActive?: boolean) {
-    const where: any = {};
-    
+    const where: Prisma.TopicWhereInput = {};
+
     if (grade !== undefined) {
       where.grade = grade;
     }
-    
+
     if (isActive !== undefined) {
       where.isActive = isActive;
     }
 
     return this.prisma.topic.findMany({
       where,
-      orderBy: [
-        { order: 'asc' },
-        { createdAt: 'desc' }
-      ],
+      orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
       include: {
         lessons: {
           select: {
@@ -127,7 +125,7 @@ export class TopicService {
 
   async getTopicStats(id: number) {
     const topic = await this.findOne(id);
-    
+
     const stats = await this.prisma.topic.findUnique({
       where: { id },
       select: {
@@ -152,22 +150,22 @@ export class TopicService {
       },
     });
 
-    const totalExercises = stats?.lessons.reduce(
-      (sum: number, lesson: any) => sum + lesson._count.exercises,
-      0
-    ) || 0;
+    const totalExercises = (stats?.lessons ?? []).reduce(
+      (sum: number, lesson) => sum + lesson._count.exercises,
+      0,
+    );
 
-    const totalAttempts = stats?.lessons.reduce(
-      (sum: number, lesson: any) => sum + lesson._count.attempts,
-      0
-    ) || 0;
+    const totalAttempts = (stats?.lessons ?? []).reduce(
+      (sum: number, lesson) => sum + lesson._count.attempts,
+      0,
+    );
 
     return {
       topicId: topic.id,
       title: topic.title,
       grade: topic.grade,
-      totalLessons: stats?._count.lessons || 0,
-      totalFlashcards: stats?._count.flashcards || 0,
+      totalLessons: stats?._count?.lessons ?? 0,
+      totalFlashcards: stats?._count?.flashcards ?? 0,
       totalExercises,
       totalAttempts,
     };

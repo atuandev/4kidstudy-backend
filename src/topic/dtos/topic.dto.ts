@@ -1,5 +1,13 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { IsString, IsEnum, IsNumber, IsOptional, IsBoolean, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PartialType } from '@nestjs/mapped-types';
+import {
+  IsString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsBoolean,
+  Min,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 // Create enum locally to avoid Prisma client issues
@@ -44,7 +52,7 @@ export class CreateTopicDto {
   @IsNumber()
   @Min(0)
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }) => Number.parseInt(String(value), 10))
   order?: number;
 
   @ApiPropertyOptional({
@@ -92,7 +100,9 @@ export class TopicResponseDto {
   @ApiProperty({ example: 'Animals and Pets' })
   title: string;
 
-  @ApiPropertyOptional({ example: 'Learn about different animals and how to take care of pets' })
+  @ApiPropertyOptional({
+    example: 'Learn about different animals and how to take care of pets',
+  })
   description?: string;
 
   @ApiProperty({ enum: GradeLevel, example: GradeLevel.GRADE_1 })
@@ -121,12 +131,12 @@ export class TopicWithRelationsDto extends TopicResponseDto {
   @ApiProperty({ type: [Object] })
   flashcards: any[];
 
-  @ApiProperty({ 
+  @ApiProperty({
     type: 'object',
     properties: {
       lessons: { type: 'number' },
-      flashcards: { type: 'number' }
-    }
+      flashcards: { type: 'number' },
+    },
   })
   _count: {
     lessons: number;
