@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../modules/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { RegisterDto } from './dto/auth.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -9,6 +10,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -108,8 +110,8 @@ export class AuthService {
           role,
         },
         {
-          secret: process.env.ACCESS_TOKEN_SECRET,
-          expiresIn: process.env.ACCESS_TOKEN_EXPIRATION_TIME || '15m',
+          secret: this.configService.get<string>('ACCESS_TOKEN_SECRET'),
+          expiresIn: this.configService.get<string>('ACCESS_TOKEN_EXPIRATION_TIME', '15m'),
         },
       ),
       this.jwtService.signAsync(
@@ -119,8 +121,8 @@ export class AuthService {
           role,
         },
         {
-          secret: process.env.REFRESH_TOKEN_SECRET,
-          expiresIn: process.env.REFRESH_TOKEN_EXPIRATION_TIME || '7d',
+          secret: this.configService.get<string>('REFRESH_TOKEN_SECRET'),
+          expiresIn: this.configService.get<string>('REFRESH_TOKEN_EXPIRATION_TIME', '7d'),
         },
       ),
     ]);
