@@ -7,6 +7,7 @@ import { TopicModule } from './modules/topic/topic.module';
 import { FlashcardModule } from './modules/flashcard/flashcard.module';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
+import { LessonModule } from './lesson/lesson.module';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { UserModule } from './user/user.module';
     TopicModule, 
     FlashcardModule, 
     AuthModule, 
-    UserModule
+    UserModule, LessonModule
   ],
   controllers: [AppController],
   providers: [AppService],
