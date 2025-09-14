@@ -21,8 +21,12 @@ import {
 import { ExerciseService } from './exercise.service';
 import { 
   CreateExerciseDto, 
+  CreateOptionDto, 
   ExerciseDto, 
+  ReorderExercisesDto, 
+  ReorderOptionsDto, 
   UpdateExerciseDto, 
+  UpdateOptionDto 
 } from './dto/exercise.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ExerciseType } from '@prisma/client';
@@ -130,5 +134,102 @@ export class ExerciseController {
   })
   async delete(@Param('id', ParseIntPipe) id: number) {
     return this.exerciseService.delete(id);
+  }
+
+  @Post(':id/options')
+//   @UseGuards(JwtAuthGuard)
+//   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add a new option to an exercise' })
+  @ApiParam({ name: 'id', description: 'Exercise ID' })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Option added successfully' 
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Exercise not found' 
+  })
+  async createOption(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() createOptionDto: CreateOptionDto,
+  ) {
+    return this.exerciseService.createOption(id, createOptionDto);
+  }
+
+  @Put('options/:id')
+//   @UseGuards(JwtAuthGuard)
+//   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update an option by ID' })
+  @ApiParam({ name: 'id', description: 'Option ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Option updated successfully' 
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Option not found' 
+  })
+  async updateOption(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateOptionDto: UpdateOptionDto,
+  ) {
+    return this.exerciseService.updateOption(id, updateOptionDto);
+  }
+
+  @Delete('options/:id')
+//   @UseGuards(JwtAuthGuard)
+//   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete an option by ID' })
+  @ApiParam({ name: 'id', description: 'Option ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Option deleted successfully' 
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Option not found' 
+  })
+  async deleteOption(@Param('id', ParseIntPipe) id: number) {
+    return this.exerciseService.deleteOption(id);
+  }
+
+  @Put('lessons/:lessonId/reorder')
+//   @UseGuards(JwtAuthGuard)
+//   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reorder exercises within a lesson' })
+  @ApiParam({ name: 'lessonId', description: 'Lesson ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Exercises reordered successfully' 
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Bad request - invalid exercise IDs' 
+  })
+  async reorderExercises(
+    @Param('lessonId', ParseIntPipe) lessonId: number,
+    @Body() reorderDto: ReorderExercisesDto,
+  ) {
+    return this.exerciseService.reorderExercises(lessonId, reorderDto.exerciseIds);
+  }
+
+  @Put(':id/options/reorder')
+//   @UseGuards(JwtAuthGuard)
+//   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reorder options within an exercise' })
+  @ApiParam({ name: 'id', description: 'Exercise ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Options reordered successfully' 
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Bad request - invalid option IDs' 
+  })
+  async reorderOptions(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() reorderDto: ReorderOptionsDto,
+  ) {
+    return this.exerciseService.reorderOptions(id, reorderDto.optionIds);
   }
 }

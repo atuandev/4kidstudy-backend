@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../modules/prisma/prisma.service';
-import { CreateExerciseDto, UpdateExerciseDto } from './dto/exercise.dto';
+import { CreateExerciseDto, CreateOptionDto, UpdateExerciseDto, UpdateOptionDto } from './dto/exercise.dto';
 import { ExerciseType } from '@prisma/client';
 
 @Injectable()
@@ -217,6 +217,159 @@ export class ExerciseService {
     // Delete exercise (will cascade to options due to Prisma schema)
     return this.prisma.exercise.delete({
       where: { id },
+    });
+  }
+
+  async createOption(exerciseId: number, createOptionDto: CreateOptionDto) {
+    // Check if exercise exists
+    await this.findOne(exerciseId);
+
+    // If order is provided, check if it already exists
+    if (createOptionDto.order !== undefined) {
+      const existingOption = await this.prisma.exerciseOption.findFirst({
+        where: { 
+          exerciseId,
+          order: createOptionDto.order
+        }
+      });
+      
+      if (existingOption) {
+        throw new BadRequestException(`An option with order ${createOptionDto.order} already exists in this exercise`);
+      }
+    } else {
+      // Get the highest order number and add 1 for the new option
+      const lastOption = await this.prisma.exerciseOption.findFirst({
+        where: { exerciseId },
+        orderBy: { order: 'desc' },
+      });
+
+      createOptionDto.order = lastOption ? lastOption.order + 1 : 0;
+    }
+
+    // Create the option
+    return this.prisma.exerciseOption.create({
+      data: {
+        exerciseId,
+        text: createOptionDto.text,
+        imageUrl: createOptionDto.imageUrl,
+        audioUrl: createOptionDto.audioUrl,
+        isCorrect: createOptionDto.isCorrect,
+        matchKey: createOptionDto.matchKey,
+        order: createOptionDto.order,
+      },
+    });
+  }
+
+  async updateOption(id: number, updateOptionDto: UpdateOptionDto) {
+    // Check if option exists
+    const option = await this.prisma.exerciseOption.findUnique({
+      where: { id },
+    });
+
+    if (!option) {
+      throw new NotFoundException(`Option with ID ${id} not found`);
+    }
+
+    // If order is being updated, check for conflicts
+    if (updateOptionDto.order !== undefined && updateOptionDto.order !== option.order) {
+      const existingOption = await this.prisma.exerciseOption.findFirst({
+        where: { 
+          exerciseId: option.exerciseId,
+          order: updateOptionDto.order,
+          id: { not: id } // Exclude the current option
+        }
+      });
+      
+      if (existingOption) {
+        throw new BadRequestException(`Another option with order ${updateOptionDto.order} already exists in this exercise`);
+      }
+    }
+
+    // Update the option
+    return this.prisma.exerciseOption.update({
+      where: { id },
+      data: updateOptionDto,
+    });
+  }
+
+  async deleteOption(id: number) {
+    // Check if option exists
+    const option = await this.prisma.exerciseOption.findUnique({
+      where: { id },
+    });
+
+    if (!option) {
+      throw new NotFoundException(`Option with ID ${id} not found`);
+    }
+
+    // Delete the option
+    return this.prisma.exerciseOption.delete({
+      where: { id },
+    });
+  }
+
+  async reorderExercises(lessonId: number, exerciseIds: number[]) {
+    // Check if all exercises exist and belong to the lesson
+    const exercises = await this.prisma.exercise.findMany({
+      where: {
+        id: { in: exerciseIds },
+        lessonId,
+      },
+    });
+
+    if (exercises.length !== exerciseIds.length) {
+      throw new BadRequestException('Some exercises do not exist or do not belong to the specified lesson');
+    }
+
+    // Update order of each exercise
+    await Promise.all(
+      exerciseIds.map((id, index) =>
+        this.prisma.exercise.update({
+          where: { id },
+          data: { order: index },
+        })
+      )
+    );
+
+    // Return the reordered exercises
+    return this.prisma.exercise.findMany({
+      where: { lessonId },
+      orderBy: { order: 'asc' },
+      include: {
+        options: {
+          orderBy: { order: 'asc' },
+        },
+      },
+    });
+  }
+
+  async reorderOptions(exerciseId: number, optionIds: number[]) {
+    // Check if all options exist and belong to the exercise
+    const options = await this.prisma.exerciseOption.findMany({
+      where: {
+        id: { in: optionIds },
+        exerciseId,
+      },
+    });
+
+    if (options.length !== optionIds.length) {
+      throw new BadRequestException('Some options do not exist or do not belong to the specified exercise');
+    }
+
+    // Update order of each option
+    await Promise.all(
+      optionIds.map((id, index) =>
+        this.prisma.exerciseOption.update({
+          where: { id },
+          data: { order: index },
+        })
+      )
+    );
+
+    // Return the reordered options
+    return this.prisma.exerciseOption.findMany({
+      where: { exerciseId },
+      orderBy: { order: 'asc' },
     });
   }
 }
