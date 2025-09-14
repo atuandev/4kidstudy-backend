@@ -27,7 +27,7 @@ import {
   TopicWithRelationsDto,
   TopicStatsDto,
   GradeLevel,
-} from './dtos/topic.dto';
+} from './dtos/index';
 
 @ApiTags('topics')
 @Controller('topics')

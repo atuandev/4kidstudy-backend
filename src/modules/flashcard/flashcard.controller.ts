@@ -25,7 +25,7 @@ import {
   UpdateFlashcardDto,
   FlashcardWithTopicDto,
   FlashcardBulkCreateDto,
-} from './dtos/flashcard.dto';
+} from './dtos/index';
 
 @ApiTags('flashcards')
 @Controller('flashcards')

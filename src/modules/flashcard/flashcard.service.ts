@@ -9,7 +9,7 @@ import {
   CreateFlashcardDto,
   UpdateFlashcardDto,
   FlashcardBulkCreateDto,
-} from './dtos/flashcard.dto';
+} from './dtos/index';
 
 @Injectable()
 export class FlashcardService {
