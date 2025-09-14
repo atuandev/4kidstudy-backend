@@ -5,10 +5,10 @@ import { AppService } from './app.service';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { TopicModule } from './modules/topic/topic.module';
 import { FlashcardModule } from './modules/flashcard/flashcard.module';
-import { AuthModule } from './auth/auth.module';
-import { UserModule } from './user/user.module';
-import { LessonModule } from './lesson/lesson.module';
-import { ExerciseModule } from './exercise/exercise.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UserModule } from './modules/user/user.module';
+import { LessonModule } from './modules/lesson/lesson.module';
+import { ExerciseModule } from './modules/exercise/exercise.module';
 
 @Module({
   imports: [
