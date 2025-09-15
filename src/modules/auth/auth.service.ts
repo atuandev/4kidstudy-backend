@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -34,7 +38,11 @@ export class AuthService {
       },
     });
 
-    const tokens = await this.generateTokens(newUser.id, newUser.email, newUser.role);
+    const tokens = await this.generateTokens(
+      newUser.id,
+      newUser.email,
+      newUser.role,
+    );
 
     return {
       user: {
@@ -51,7 +59,6 @@ export class AuthService {
   }
 
   async login(email: string, password: string) {
-
     const user = await this.prisma.user.findUnique({
       where: { email },
     });
@@ -82,7 +89,6 @@ export class AuthService {
   }
 
   async refreshTokens(userId: number, refreshToken: string) {
-    
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -97,11 +103,7 @@ export class AuthService {
     return tokens;
   }
 
-  private async generateTokens(
-    userId: number, 
-    email: string, 
-    role: string
-  ) {
+  private async generateTokens(userId: number, email: string, role: string) {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
         {
@@ -111,7 +113,10 @@ export class AuthService {
         },
         {
           secret: this.configService.get<string>('ACCESS_TOKEN_SECRET'),
-          expiresIn: this.configService.get<string>('ACCESS_TOKEN_EXPIRATION_TIME', '15m'),
+          expiresIn: this.configService.get<string>(
+            'ACCESS_TOKEN_EXPIRATION_TIME',
+            '7d',
+          ),
         },
       ),
       this.jwtService.signAsync(
@@ -122,7 +127,10 @@ export class AuthService {
         },
         {
           secret: this.configService.get<string>('REFRESH_TOKEN_SECRET'),
-          expiresIn: this.configService.get<string>('REFRESH_TOKEN_EXPIRATION_TIME', '7d'),
+          expiresIn: this.configService.get<string>(
+            'REFRESH_TOKEN_EXPIRATION_TIME',
+            '30d',
+          ),
         },
       ),
     ]);
