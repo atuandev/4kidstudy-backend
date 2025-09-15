@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsString, IsNotEmpty, MinLength, IsOptional, IsEnum } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  IsNotEmpty,
+  MinLength,
+  IsOptional,
+  IsEnum,
+} from 'class-validator';
 import { Gender } from '@prisma/client';
 import { Transform } from 'class-transformer';
 
@@ -34,7 +41,7 @@ export class RegisterDto {
     example: '2015-01-15',
   })
   @IsOptional()
-  @Transform(({ value }) => value ? new Date(value) : undefined)
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
   dob?: Date;
 
   @ApiPropertyOptional({

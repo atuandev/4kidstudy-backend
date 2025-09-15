@@ -1,12 +1,12 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { 
-  RegisterDto, 
-  LoginDto, 
-  RefreshTokenDto, 
-  AuthResponseDto, 
-  TokensResponseDto 
+import {
+  RegisterDto,
+  LoginDto,
+  RefreshTokenDto,
+  AuthResponseDto,
+  TokensResponseDto,
 } from './dto/index';
 
 @ApiTags('auth')
@@ -17,18 +17,18 @@ export class AuthController {
   @Post('register')
   @ApiOperation({ summary: 'Register a new user' })
   @ApiBody({ type: RegisterDto })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'User registered successfully',
-    type: AuthResponseDto
+    type: AuthResponseDto,
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Bad request - validation failed' 
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation failed',
   })
-  @ApiResponse({ 
-    status: 409, 
-    description: 'Conflict - email already exists' 
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - email already exists',
   })
   async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
     return this.authService.register(registerDto);
@@ -38,14 +38,14 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiBody({ type: LoginDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Login successful',
-    type: AuthResponseDto
+    type: AuthResponseDto,
   })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - invalid credentials' 
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - invalid credentials',
   })
   async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(loginDto.email, loginDto.password);
@@ -55,17 +55,17 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
   @ApiBody({ type: RefreshTokenDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Tokens refreshed successfully',
-    type: TokensResponseDto
+    type: TokensResponseDto,
   })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - invalid refresh token' 
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - invalid refresh token',
   })
   async refreshTokens(
-    @Body() refreshTokenDto: RefreshTokenDto
+    @Body() refreshTokenDto: RefreshTokenDto,
   ): Promise<TokensResponseDto> {
     return this.authService.refreshTokens(1, refreshTokenDto.refreshToken);
   }
