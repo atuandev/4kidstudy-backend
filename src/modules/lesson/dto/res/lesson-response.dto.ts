@@ -17,13 +17,15 @@ export class LessonResponseDto {
   @ApiProperty({ description: 'The order of the lesson within its topic' })
   order: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'The current status of the lesson',
-    enum: LessonStatus
+    enum: LessonStatus,
   })
   status: LessonStatus;
 
-  @ApiPropertyOptional({ description: 'Theory content in markdown/plain format' })
+  @ApiPropertyOptional({
+    description: 'Theory content in markdown/plain format',
+  })
   theoryText?: string;
 
   @ApiPropertyOptional({ description: 'Notes about the phonetics' })

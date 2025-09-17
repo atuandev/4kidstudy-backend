@@ -1,6 +1,15 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateExerciseDto, CreateOptionDto, UpdateExerciseDto, UpdateOptionDto } from './dto/index';
+import {
+  CreateExerciseDto,
+  CreateOptionDto,
+  UpdateExerciseDto,
+  UpdateOptionDto,
+} from './dto/index';
 import { ExerciseType } from '@prisma/client';
 
 @Injectable()
@@ -8,16 +17,19 @@ export class ExerciseService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(lessonId?: number, type?: ExerciseType) {
-    const where: any = {};
-    
+    const where: {
+      lessonId?: number;
+      type?: ExerciseType;
+    } = {};
+
     if (lessonId) {
       where.lessonId = lessonId;
     }
-    
+
     if (type) {
       where.type = type;
     }
-    
+
     return this.prisma.exercise.findMany({
       where,
       include: {
@@ -52,6 +64,25 @@ export class ExerciseService {
     return exercise;
   }
 
+  async getExerciseOptions(exerciseId: number) {
+    // First verify the exercise exists
+    const exercise = await this.prisma.exercise.findUnique({
+      where: { id: exerciseId },
+    });
+
+    if (!exercise) {
+      throw new NotFoundException(`Exercise with ID ${exerciseId} not found`);
+    }
+
+    // Get all options for this exercise
+    return this.prisma.exerciseOption.findMany({
+      where: { exerciseId },
+      orderBy: {
+        order: 'asc',
+      },
+    });
+  }
+
   async create(createExerciseDto: CreateExerciseDto) {
     // Check if lesson exists
     const lesson = await this.prisma.lesson.findUnique({
@@ -59,7 +90,9 @@ export class ExerciseService {
     });
 
     if (!lesson) {
-      throw new NotFoundException(`Lesson with ID ${createExerciseDto.lessonId} not found`);
+      throw new NotFoundException(
+        `Lesson with ID ${createExerciseDto.lessonId} not found`,
+      );
     }
 
     // Get the highest order number and add 1 for the new exercise
@@ -85,7 +118,7 @@ export class ExerciseService {
       // Create options if provided
       if (options && options.length > 0) {
         await Promise.all(
-          options.map((option, index) => 
+          options.map((option, index) =>
             tx.exerciseOption.create({
               data: {
                 exerciseId: exercise.id,
@@ -96,8 +129,8 @@ export class ExerciseService {
                 matchKey: option.matchKey,
                 order: option.order ?? index,
               },
-            })
-          )
+            }),
+          ),
         );
       }
 
@@ -129,13 +162,15 @@ export class ExerciseService {
       });
 
       if (!lessonExists) {
-        throw new NotFoundException(`Lesson with ID ${exerciseData.lessonId} not found`);
+        throw new NotFoundException(
+          `Lesson with ID ${exerciseData.lessonId} not found`,
+        );
       }
     }
 
     return this.prisma.$transaction(async (tx) => {
       // Update the exercise properties only
-      const exercise = await tx.exercise.update({
+      await tx.exercise.update({
         where: { id },
         data: exerciseData,
       });
@@ -162,14 +197,16 @@ export class ExerciseService {
             // If order is provided, check if it already exists
             if (option.order !== undefined) {
               const existingOption = await tx.exerciseOption.findFirst({
-                where: { 
+                where: {
                   exerciseId: id,
-                  order: option.order
-                }
+                  order: option.order,
+                },
               });
-              
+
               if (existingOption) {
-                throw new BadRequestException(`An option with order ${option.order} already exists in this exercise`);
+                throw new BadRequestException(
+                  `An option with order ${option.order} already exists in this exercise`,
+                );
               }
             } else {
               // If no order provided, get highest order + 1
@@ -179,7 +216,7 @@ export class ExerciseService {
               });
               option.order = lastOption ? lastOption.order + 1 : 0;
             }
-            
+
             // Create new option
             await tx.exerciseOption.create({
               data: {
@@ -213,7 +250,7 @@ export class ExerciseService {
   async delete(id: number) {
     // Check if exercise exists
     await this.findOne(id);
-    
+
     // Delete exercise (will cascade to options due to Prisma schema)
     return this.prisma.exercise.delete({
       where: { id },
@@ -227,14 +264,16 @@ export class ExerciseService {
     // If order is provided, check if it already exists
     if (createOptionDto.order !== undefined) {
       const existingOption = await this.prisma.exerciseOption.findFirst({
-        where: { 
+        where: {
           exerciseId,
-          order: createOptionDto.order
-        }
+          order: createOptionDto.order,
+        },
       });
-      
+
       if (existingOption) {
-        throw new BadRequestException(`An option with order ${createOptionDto.order} already exists in this exercise`);
+        throw new BadRequestException(
+          `An option with order ${createOptionDto.order} already exists in this exercise`,
+        );
       }
     } else {
       // Get the highest order number and add 1 for the new option
@@ -271,17 +310,22 @@ export class ExerciseService {
     }
 
     // If order is being updated, check for conflicts
-    if (updateOptionDto.order !== undefined && updateOptionDto.order !== option.order) {
+    if (
+      updateOptionDto.order !== undefined &&
+      updateOptionDto.order !== option.order
+    ) {
       const existingOption = await this.prisma.exerciseOption.findFirst({
-        where: { 
+        where: {
           exerciseId: option.exerciseId,
           order: updateOptionDto.order,
-          id: { not: id } // Exclude the current option
-        }
+          id: { not: id }, // Exclude the current option
+        },
       });
-      
+
       if (existingOption) {
-        throw new BadRequestException(`Another option with order ${updateOptionDto.order} already exists in this exercise`);
+        throw new BadRequestException(
+          `Another option with order ${updateOptionDto.order} already exists in this exercise`,
+        );
       }
     }
 
@@ -318,7 +362,9 @@ export class ExerciseService {
     });
 
     if (exercises.length !== exerciseIds.length) {
-      throw new BadRequestException('Some exercises do not exist or do not belong to the specified lesson');
+      throw new BadRequestException(
+        'Some exercises do not exist or do not belong to the specified lesson',
+      );
     }
 
     // Update order of each exercise
@@ -327,8 +373,8 @@ export class ExerciseService {
         this.prisma.exercise.update({
           where: { id },
           data: { order: index },
-        })
-      )
+        }),
+      ),
     );
 
     // Return the reordered exercises
@@ -353,7 +399,9 @@ export class ExerciseService {
     });
 
     if (options.length !== optionIds.length) {
-      throw new BadRequestException('Some options do not exist or do not belong to the specified exercise');
+      throw new BadRequestException(
+        'Some options do not exist or do not belong to the specified exercise',
+      );
     }
 
     // Update order of each option
@@ -362,8 +410,8 @@ export class ExerciseService {
         this.prisma.exerciseOption.update({
           where: { id },
           data: { order: index },
-        })
-      )
+        }),
+      ),
     );
 
     // Return the reordered options

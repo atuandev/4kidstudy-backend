@@ -13,11 +13,13 @@ import { ExerciseModule } from './modules/exercise/exercise.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    PrismaModule, 
-    TopicModule, 
-    FlashcardModule, 
-    AuthModule, 
-    UserModule, LessonModule, ExerciseModule
+    PrismaModule,
+    TopicModule,
+    FlashcardModule,
+    AuthModule,
+    UserModule,
+    LessonModule,
+    ExerciseModule,
   ],
   controllers: [AppController],
   providers: [AppService],

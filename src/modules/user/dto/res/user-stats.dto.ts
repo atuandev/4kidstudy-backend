@@ -18,4 +18,4 @@ export class UserStatsDto {
 
   @ApiPropertyOptional({ example: '2024-09-10T00:00:00.000Z' })
   bestDay: Date | null;
-}   
+}
