@@ -1,13 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { 
-  IsEnum, 
-  IsInt, 
-  IsString, 
-  IsOptional, 
-  ValidateNested, 
-  Min, 
+import {
+  IsEnum,
+  IsInt,
+  IsString,
+  IsOptional,
+  ValidateNested,
+  Min,
   Max,
-  IsArray
+  IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ExerciseType } from '@prisma/client';
@@ -26,12 +26,16 @@ export class CreateExerciseDto {
   @IsEnum(ExerciseType)
   type: ExerciseType;
 
-  @ApiPropertyOptional({ description: 'Order/position of this exercise in the lesson' })
+  @ApiPropertyOptional({
+    description: 'Order/position of this exercise in the lesson',
+  })
   @IsInt()
   @IsOptional()
   order?: number;
 
-  @ApiPropertyOptional({ description: 'Question text or instructions for the exercise' })
+  @ApiPropertyOptional({
+    description: 'Question text or instructions for the exercise',
+  })
   @IsString()
   @IsOptional()
   prompt?: string;
@@ -46,25 +50,26 @@ export class CreateExerciseDto {
   @IsOptional()
   audioUrl?: string;
 
-  @ApiPropertyOptional({ 
-    description: 'Target text for pronunciation or expected answer for listening' 
+  @ApiPropertyOptional({
+    description:
+      'Target text for pronunciation or expected answer for listening',
   })
   @IsString()
   @IsOptional()
   targetText?: string;
 
-  @ApiPropertyOptional({ 
-    description: 'Points earned for correctly answering this exercise', 
-    default: 10 
+  @ApiPropertyOptional({
+    description: 'Points earned for correctly answering this exercise',
+    default: 10,
   })
   @IsInt()
   @IsOptional()
   @Min(1)
   points?: number;
 
-  @ApiPropertyOptional({ 
-    description: 'Difficulty level (1-3)', 
-    default: 1 
+  @ApiPropertyOptional({
+    description: 'Difficulty level (1-3)',
+    default: 1,
   })
   @IsInt()
   @IsOptional()
@@ -72,7 +77,10 @@ export class CreateExerciseDto {
   @Max(3)
   difficulty?: number;
 
-  @ApiPropertyOptional({ type: [CreateOptionDto], description: 'Options for this exercise' })
+  @ApiPropertyOptional({
+    type: [CreateOptionDto],
+    description: 'Options for this exercise',
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateOptionDto)

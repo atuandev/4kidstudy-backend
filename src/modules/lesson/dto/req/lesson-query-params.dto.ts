@@ -1,11 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { 
-  IsEnum, 
-  IsInt, 
-  IsOptional, 
-  IsPositive, 
-  Min 
-} from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsPositive, Min } from 'class-validator';
 import { LessonStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 
@@ -31,9 +25,9 @@ export class LessonQueryParamsDto {
   @Type(() => Number)
   topicId?: number;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Filter by status',
-    enum: LessonStatus
+    enum: LessonStatus,
   })
   @IsEnum(LessonStatus)
   @IsOptional()

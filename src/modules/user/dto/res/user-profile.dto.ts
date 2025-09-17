@@ -11,13 +11,13 @@ export class UserProfileDto {
   @ApiProperty({ example: 'John Doe' })
   name: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     example: UserRole.LEARNER,
     enum: UserRole,
   })
   role: UserRole;
 
-  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })   
+  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })
   avatarUrl?: string;
 
   @ApiPropertyOptional({ example: '2015-01-15T00:00:00.000Z' })
@@ -48,8 +48,8 @@ export class UserProfileDto {
     example: {
       attempts: 25,
       xpLogs: 50,
-      streakLogs: 5
-    }
+      streakLogs: 5,
+    },
   })
   _count: {
     attempts: number;

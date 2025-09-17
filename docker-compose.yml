@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: 123456
       POSTGRES_DB: 4kidstudy_db
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
 

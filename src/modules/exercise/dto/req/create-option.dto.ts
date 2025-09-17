@@ -17,7 +17,10 @@ export class CreateOptionDto {
   @IsOptional()
   audioUrl?: string;
 
-  @ApiProperty({ description: 'Whether this option is correct', default: false })
+  @ApiProperty({
+    description: 'Whether this option is correct',
+    default: false,
+  })
   @IsBoolean()
   isCorrect: boolean = false;
 
@@ -26,8 +29,9 @@ export class CreateOptionDto {
   @IsOptional()
   order?: number;
 
-  @ApiPropertyOptional({ 
-    description: 'For MATCHING type: matching key to link pairs (e.g., "pair_1")' 
+  @ApiPropertyOptional({
+    description:
+      'For MATCHING type: matching key to link pairs (e.g., "pair_1")',
   })
   @IsString()
   @IsOptional()

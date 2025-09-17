@@ -1,10 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PartialType } from '@nestjs/mapped-types';
-import {
-  IsString,
-  IsEnum,
-  IsOptional,
-} from 'class-validator';
+import { IsString, IsEnum, IsOptional } from 'class-validator';
 import { CreateTopicDto, GradeLevel } from './create-topic.dto';
 
 export class UpdateTopicDto extends PartialType(CreateTopicDto) {
