@@ -59,6 +59,20 @@ export class CreateExerciseDto {
   targetText?: string;
 
   @ApiPropertyOptional({
+    description: 'Hint text in English',
+  })
+  @IsString()
+  @IsOptional()
+  hintEn?: string;
+
+  @ApiPropertyOptional({
+    description: 'Hint text in Vietnamese',
+  })
+  @IsString()
+  @IsOptional()
+  hintVi?: string;
+
+  @ApiPropertyOptional({
     description: 'Points earned for correctly answering this exercise',
     default: 10,
   })
