@@ -48,6 +48,7 @@ export class SentenceService {
           where: isActive !== undefined ? { isActive } : undefined,
           orderBy: { order: 'asc' },
         },
+        topic: true,
       },
       orderBy: { order: 'asc' },
     });
@@ -70,6 +71,7 @@ export class SentenceService {
           where: isActive !== undefined ? { isActive } : undefined,
           orderBy: { order: 'asc' },
         },
+        topic: true,
       },
       orderBy: { order: 'asc' },
     });
@@ -95,6 +97,7 @@ export class SentenceService {
         sentences: {
           orderBy: { order: 'asc' },
         },
+        topic: true,
       },
     });
   }
@@ -125,6 +128,7 @@ export class SentenceService {
           order: createDto.order ?? 0,
           isActive: createDto.isActive ?? true,
         },
+        include: { topic: true },
       });
       const sentences = await Promise.all(
         createDto.sentences.map((sentence, index) =>
@@ -177,6 +181,7 @@ export class SentenceService {
         sentences: {
           orderBy: { order: 'asc' },
         },
+        topic: true,
       },
     });
     if (!sentenceImage) {
@@ -223,6 +228,7 @@ export class SentenceService {
         sentences: {
           orderBy: { order: 'asc' },
         },
+        topic: true,
       },
     });
   }
@@ -260,6 +266,7 @@ export class SentenceService {
       where: { id },
       include: {
         sentences: true,
+        topic: true,
       },
     });
   }
