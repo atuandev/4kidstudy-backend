@@ -54,6 +54,28 @@ export class SentenceService {
   }
 
   /**
+   * Get all sentence images with their associated sentences
+   */
+  async getAllSentenceImages(
+    isActive?: boolean,
+  ): Promise<SentenceImageWithSentences[]> {
+    const where: Prisma.SentenceImageWhereInput = {};
+    if (isActive !== undefined) {
+      where.isActive = isActive;
+    }
+    return this.prisma.sentenceImage.findMany({
+      where,
+      include: {
+        sentences: {
+          where: isActive !== undefined ? { isActive } : undefined,
+          orderBy: { order: 'asc' },
+        },
+      },
+      orderBy: { order: 'asc' },
+    });
+  }
+
+  /**
    * Create a new sentence image
    */
   async createSentenceImage(

@@ -35,6 +35,27 @@ import {
 export class SentenceController {
   constructor(private readonly sentenceService: SentenceService) {}
 
+  @Get('images')
+  @ApiOperation({
+    summary: 'Get all sentence images',
+    description:
+      'Retrieves all sentence images with their associated sentences',
+  })
+  @ApiQuery({
+    name: 'isActive',
+    required: false,
+    type: Boolean,
+    description: 'Filter by active status',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of all sentence images retrieved successfully',
+    type: [SentenceImageResponseDto],
+  })
+  async getAllSentenceImages(@Query('isActive') isActive?: boolean) {
+    return this.sentenceService.getAllSentenceImages(isActive);
+  }
+
   @Get('images/topic/:topicId')
   @ApiOperation({
     summary: 'Get sentence images by topic ID',
@@ -220,10 +241,7 @@ export class SentenceController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateSentenceImageDto: UpdateSentenceImageDto,
   ) {
-    return this.sentenceService.updateSentenceImage(
-      id,
-      updateSentenceImageDto,
-    );
+    return this.sentenceService.updateSentenceImage(id, updateSentenceImageDto);
   }
 
   @Put(':id')
@@ -306,4 +324,3 @@ export class SentenceController {
     return this.sentenceService.deleteSentence(id);
   }
 }
-

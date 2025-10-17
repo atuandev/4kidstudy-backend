@@ -23,7 +23,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate:reset": "prisma migrate reset",
-    "prisma:studio": "prisma studio",
+    "prisma:studio": "prisma studio --browser none",
     "prisma:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {

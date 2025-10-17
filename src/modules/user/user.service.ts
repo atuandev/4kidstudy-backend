@@ -1,9 +1,42 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async findAll(isActive?: boolean) {
+    const where: Prisma.UserWhereInput = {};
+    if (isActive !== undefined) {
+      where.isActive = isActive;
+    }
+    return this.prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        avatarUrl: true,
+        dob: true,
+        gender: true,
+        xp: true,
+        streakDays: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            attempts: true,
+            xpLogs: true,
+            streakLogs: true,
+          },
+        },
+      },
+    });
+  }
 
   async findById(id: number) {
     const user = await this.prisma.user.findUnique({
@@ -90,5 +123,40 @@ export class UserService {
     });
 
     return learningStats;
+  }
+
+  async updateStatus(id: number, isActive: boolean) {
+    // Ensure user exists
+    await this.findById(id);
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { isActive },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        avatarUrl: true,
+        dob: true,
+        gender: true,
+        xp: true,
+        streakDays: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            attempts: true,
+            xpLogs: true,
+            streakLogs: true,
+          },
+        },
+      },
+    });
+    return {
+      ...updated,
+      avatarUrl: updated.avatarUrl || undefined,
+      dob: updated.dob || undefined,
+    };
   }
 }

@@ -5,6 +5,9 @@ import {
   Req,
   Param,
   ParseIntPipe,
+  Query,
+  Put,
+  Body,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -16,11 +19,32 @@ import {
 import { UserService } from './user.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserProfileDto, UserStatsDto } from './dto/index';
+import { UpdateUserStatusDto } from './dto/req/update-user-status.dto';
+import { ApiQuery, ApiBody } from '@nestjs/swagger';
 
 @ApiTags('users')
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all users' })
+  @ApiQuery({
+    name: 'isActive',
+    required: false,
+    type: Boolean,
+    description: 'Filter by active status',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Users retrieved successfully',
+    type: [UserProfileDto],
+  })
+  async getAllUsers(@Query('isActive') isActive?: boolean) {
+    return this.userService.findAll(isActive);
+  }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
@@ -110,5 +134,23 @@ export class UserController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<UserStatsDto> {
     return this.userService.findProfileStatistics(id);
+  }
+
+  @Put(':id/status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update user active status' })
+  @ApiParam({ name: 'id', description: 'User ID', type: 'number' })
+  @ApiBody({ type: UpdateUserStatusDto })
+  @ApiResponse({
+    status: 200,
+    description: 'User status updated',
+    type: UserProfileDto,
+  })
+  async updateUserStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateUserStatusDto,
+  ): Promise<UserProfileDto> {
+    return this.userService.updateStatus(id, body.isActive);
   }
 }
