@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SentenceResponseDto } from './sentence-response.dto';
-import { TopicResponseDto } from '../../topic/dtos/res/topic-response.dto';
+import { TopicResponseDto } from '../../../topic/dtos/res/topic-response.dto';
 
 export class SentenceImageResponseDto {
   @ApiProperty({ example: 1 })
@@ -33,4 +33,3 @@ export class SentenceImageResponseDto {
   @ApiProperty({ type: TopicResponseDto })
   topic: TopicResponseDto;
 }
-
