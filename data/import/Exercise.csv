@@ -1,0 +1,10 @@
+﻿type,order,prompt,imageUrl,audioUrl,targetText,points,difficulty,createdAt,updatedAt,hintEn,hintVi,id
+SELECT_IMAGE,0,Look and match: 'Bike',\N,\N,\N,10,1,9/14/2025 16:54,9/14/2025 16:54,\N,\N,1
+SELECT_IMAGE,1,Look and match: 'Book',\N,\N,\N,10,1,9/14/2025 16:54,9/14/2025 16:54,\N,\N,2
+LISTENING,2,Listen and choose,\N,https://res.cloudinary.com/dz1x6r3cl/video/upload/v1756989535/g1-u1-Bill_omt1qd.mp3,Bill,10,1,9/14/2025 16:54,9/14/2025 16:54,\N,\N,3
+LISTENING,3,Listen and choose,\N,https://res.cloudinary.com/dz1x6r3cl/video/upload/v1756989535/g1-u1-Ball_snaxig.mp3,Ball,10,1,9/14/2025 16:54,9/14/2025 16:54,\N,\N,4
+MULTIPLE_CHOICE,4,___ike,https://res.cloudinary.com/dz1x6r3cl/image/upload/v1756984451/u1-bike_r7fhv0.png,https://res.cloudinary.com/dz1x6r3cl/video/upload/v1756989535/g1-u1-Bike_rby6u3.mp3,B,10,1,9/14/2025 16:54,9/14/2025 16:54,\N,\N,5
+MULTIPLE_CHOICE,5,___ook,https://res.cloudinary.com/dz1x6r3cl/image/upload/v1756982895/u1-book_r1dbv3.png,https://res.cloudinary.com/dz1x6r3cl/video/upload/v1756989535/g1-u1-Book_nfwdhm.mp3,B,10,1,9/14/2025 16:54,9/14/2025 16:54,\N,\N,6
+PRONUNCIATION,6,Listen and pronunciation,https://res.cloudinary.com/dz1x6r3cl/image/upload/v1756982894/u1-bill_etvauh.png,https://res.cloudinary.com/dz1x6r3cl/video/upload/v1756989535/g1-u1-Bill_omt1qd.mp3,Bill,10,1,9/14/2025 16:54,9/14/2025 16:54,\N,\N,7
+PRONUNCIATION,7,Listen and pronunciation,https://res.cloudinary.com/dz1x6r3cl/image/upload/v1756982893/u1-ball_u3ospz.png,https://res.cloudinary.com/dz1x6r3cl/video/upload/v1756989535/g1-u1-Ball_snaxig.mp3,Ball,10,1,9/14/2025 16:54,9/14/2025 16:54,\N,\N,8
+MATCHING,8,Matching,\N,\N,\N,10,1,9/14/2025 16:54,9/14/2025 16:54,\N,\N,9

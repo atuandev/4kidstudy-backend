@@ -4,6 +4,8 @@ export * from './req/exercise-option.dto';
 export * from './req/create-exercise.dto';
 export * from './req/create-many-exercises.dto';
 export * from './req/update-exercise.dto';
+export * from './req/import-csv.dto';
 export * from './res/exercise-response.dto';
+export * from './res/import-csv-response.dto';
 export * from './req/reorder-exercises.dto';
 export * from './req/reorder-options.dto';
