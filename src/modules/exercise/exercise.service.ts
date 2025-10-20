@@ -451,18 +451,28 @@ export class ExerciseService {
       options: { created: 0, skipped: 0, failed: 0, errors: [] },
     };
 
+    // Map CSV exercise ID to database exercise ID
+    const exerciseIdMap = new Map<number, number>();
+
     // Import exercises if file provided
     if (exercisesFile) {
-      const exercisesResult = await this.importExercises(
+      const { stats, idMap } = await this.importExercises(
         lessonId,
         exercisesFile.buffer,
       );
-      response.exercises = exercisesResult;
+      response.exercises = stats;
+      // Store the ID mapping for options import
+      idMap.forEach((dbId, csvId) => {
+        exerciseIdMap.set(csvId, dbId);
+      });
     }
 
     // Import options if file provided
     if (optionsFile) {
-      const optionsResult = await this.importOptions(optionsFile.buffer);
+      const optionsResult = await this.importOptions(
+        optionsFile.buffer,
+        exerciseIdMap,
+      );
       response.options = optionsResult;
     }
 
@@ -510,6 +520,7 @@ export class ExerciseService {
    */
   private async importExercises(lessonId: number, buffer: Buffer) {
     const stats = { created: 0, skipped: 0, failed: 0, errors: [] as string[] };
+    const idMap = new Map<number, number>(); // CSV ID -> Database ID
 
     try {
       const exercises = await this.parseCsv(buffer);
@@ -518,6 +529,8 @@ export class ExerciseService {
         try {
           // Check for duplicate (same lessonId and order)
           const order = parseInt(row.order || '0');
+          const csvId = parseInt(row.id || '0'); // Get CSV ID for mapping
+          
           const existing = await this.prisma.exercise.findFirst({
             where: {
               lessonId,
@@ -530,6 +543,10 @@ export class ExerciseService {
             stats.errors?.push(
               `Exercise with order ${order} already exists in lesson ${lessonId}`,
             );
+            // Still map the existing ID in case options reference it
+            if (csvId) {
+              idMap.set(csvId, existing.id);
+            }
             continue;
           }
 
@@ -554,7 +571,7 @@ export class ExerciseService {
             continue;
           }
 
-          await this.prisma.exercise.create({
+          const createdExercise = await this.prisma.exercise.create({
             data: {
               lessonId,
               type,
@@ -576,6 +593,11 @@ export class ExerciseService {
           });
 
           stats.created++;
+          
+          // Map CSV ID to Database ID
+          if (csvId) {
+            idMap.set(csvId, createdExercise.id);
+          }
         } catch (error: any) {
           stats.failed++;
           stats.errors?.push(
@@ -589,13 +611,16 @@ export class ExerciseService {
       );
     }
 
-    return stats;
+    return { stats, idMap };
   }
 
   /**
    * Import exercise options from CSV
    */
-  private async importOptions(buffer: Buffer) {
+  private async importOptions(
+    buffer: Buffer,
+    exerciseIdMap: Map<number, number>,
+  ) {
     const stats = { created: 0, skipped: 0, failed: 0, errors: [] as string[] };
 
     try {
@@ -603,18 +628,29 @@ export class ExerciseService {
 
       for (const row of options) {
         try {
-          const exerciseId = parseInt(row.exerciseId || '0');
+          const csvExerciseId = parseInt(row.exerciseId || '0');
           const order = parseInt(row.order || '0');
 
-          // Verify exercise exists
+          // Map CSV exercise ID to database exercise ID
+          const dbExerciseId = exerciseIdMap.get(csvExerciseId);
+
+          if (!dbExerciseId) {
+            stats.failed++;
+            stats.errors?.push(
+              `Exercise with CSV ID ${csvExerciseId} not found in imported exercises. Option at order ${order} skipped.`,
+            );
+            continue;
+          }
+
+          // Verify exercise exists in database
           const exercise = await this.prisma.exercise.findUnique({
-            where: { id: exerciseId },
+            where: { id: dbExerciseId },
           });
 
           if (!exercise) {
             stats.failed++;
             stats.errors?.push(
-              `Exercise with ID ${exerciseId} not found for option at order ${order}`,
+              `Exercise with DB ID ${dbExerciseId} (CSV ID: ${csvExerciseId}) not found for option at order ${order}`,
             );
             continue;
           }
@@ -622,7 +658,7 @@ export class ExerciseService {
           // Check for duplicate (same exerciseId and order)
           const existing = await this.prisma.exerciseOption.findFirst({
             where: {
-              exerciseId,
+              exerciseId: dbExerciseId,
               order,
             },
           });
@@ -630,14 +666,14 @@ export class ExerciseService {
           if (existing) {
             stats.skipped++;
             stats.errors?.push(
-              `Option with order ${order} already exists for exercise ${exerciseId}`,
+              `Option with order ${order} already exists for exercise ${dbExerciseId} (CSV ID: ${csvExerciseId})`,
             );
             continue;
           }
 
           // Map CSV columns to ExerciseOption model
           const optionData = {
-            exerciseId,
+            exerciseId: dbExerciseId, // Use the mapped database ID
             text: row.text === '\\N' || !row.text ? null : row.text,
             imageUrl:
               row.imageUrl === '\\N' || !row.imageUrl ? null : row.imageUrl,
