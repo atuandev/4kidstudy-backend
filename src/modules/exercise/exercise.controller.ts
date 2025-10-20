@@ -9,7 +9,11 @@ import {
   Query,
   // UseGuards,
   ParseIntPipe,
+  UseInterceptors,
+  UploadedFiles,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import {
   // ApiBearerAuth,
   ApiTags,
@@ -17,6 +21,8 @@ import {
   ApiResponse,
   ApiParam,
   ApiQuery,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { ExerciseService } from './exercise.service';
 import {
@@ -28,6 +34,8 @@ import {
   ReorderOptionsDto,
   UpdateExerciseDto,
   UpdateOptionDto,
+  ImportCsvDto,
+  ImportCsvResponseDto,
 } from './dto/index';
 // import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ExerciseType } from '@prisma/client';
@@ -255,5 +263,81 @@ export class ExerciseController {
     @Body() reorderDto: ReorderOptionsDto,
   ) {
     return this.exerciseService.reorderOptions(id, reorderDto.optionIds);
+  }
+
+  @Post('import')
+  //   @UseGuards(JwtAuthGuard)
+  //   @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Import exercises and/or exercise options from CSV files for a lesson',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'CSV files for exercises and/or options with lessonId',
+    schema: {
+      type: 'object',
+      required: ['lessonId'],
+      properties: {
+        lessonId: {
+          type: 'integer',
+          description: 'ID of the lesson to import exercises for',
+        },
+        exercisesFile: {
+          type: 'string',
+          format: 'binary',
+          description:
+            'CSV file containing exercises (columns: type, order, prompt, imageUrl, audioUrl, targetText, hintEn, hintVi, points, difficulty)',
+        },
+        optionsFile: {
+          type: 'string',
+          format: 'binary',
+          description:
+            'CSV file containing exercise options (columns: exerciseId, text, imageUrl, audioUrl, isCorrect, order, matchKey)',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'CSV files imported successfully',
+    type: ImportCsvResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - invalid CSV format or data',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Lesson not found',
+  })
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'exercisesFile', maxCount: 1 },
+      { name: 'optionsFile', maxCount: 1 },
+    ]),
+  )
+  async importCsv(
+    @Body('lessonId', ParseIntPipe) lessonId: number,
+    @UploadedFiles()
+    files: {
+      exercisesFile?: Express.Multer.File[];
+      optionsFile?: Express.Multer.File[];
+    },
+  ) {
+    const exercisesFile = files?.exercisesFile?.[0];
+    const optionsFile = files?.optionsFile?.[0];
+
+    if (!exercisesFile && !optionsFile) {
+      throw new BadRequestException(
+        'At least one CSV file (exercisesFile or optionsFile) must be provided',
+      );
+    }
+
+    return this.exerciseService.importFromCsv(
+      lessonId,
+      exercisesFile,
+      optionsFile,
+    );
   }
 }

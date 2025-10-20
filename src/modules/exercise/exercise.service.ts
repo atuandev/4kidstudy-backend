@@ -9,8 +9,15 @@ import {
   CreateOptionDto,
   UpdateExerciseDto,
   UpdateOptionDto,
+  ImportCsvResponseDto,
 } from './dto/index';
 import { ExerciseType } from '@prisma/client';
+import csvParser from 'csv-parser';
+import { Readable } from 'stream';
+
+interface CsvRow {
+  [key: string]: string;
+}
 
 @Injectable()
 export class ExerciseService {
@@ -419,5 +426,247 @@ export class ExerciseService {
       where: { exerciseId },
       orderBy: { order: 'asc' },
     });
+  }
+
+  /**
+   * Import exercises and/or options from CSV files
+   */
+  async importFromCsv(
+    lessonId: number,
+    exercisesFile?: Express.Multer.File,
+    optionsFile?: Express.Multer.File,
+  ): Promise<ImportCsvResponseDto> {
+    // Verify lesson exists
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+    });
+
+    if (!lesson) {
+      throw new NotFoundException(`Lesson with ID ${lessonId} not found`);
+    }
+
+    const response: ImportCsvResponseDto = {
+      success: true,
+      exercises: { created: 0, skipped: 0, failed: 0, errors: [] },
+      options: { created: 0, skipped: 0, failed: 0, errors: [] },
+    };
+
+    // Import exercises if file provided
+    if (exercisesFile) {
+      const exercisesResult = await this.importExercises(
+        lessonId,
+        exercisesFile.buffer,
+      );
+      response.exercises = exercisesResult;
+    }
+
+    // Import options if file provided
+    if (optionsFile) {
+      const optionsResult = await this.importOptions(optionsFile.buffer);
+      response.options = optionsResult;
+    }
+
+    // Set overall success based on failures
+    response.success =
+      response.exercises.failed === 0 && response.options.failed === 0;
+
+    response.message = `Import completed. Exercises: ${response.exercises.created} created, ${response.exercises.skipped} skipped, ${response.exercises.failed} failed. Options: ${response.options.created} created, ${response.options.skipped} skipped, ${response.options.failed} failed.`;
+
+    return response;
+  }
+
+  /**
+   * Parse CSV buffer and return array of objects
+   */
+  private async parseCsv(buffer: Buffer): Promise<CsvRow[]> {
+    return new Promise((resolve, reject) => {
+      const results: CsvRow[] = [];
+      // Remove BOM if present
+      let content = buffer.toString('utf8');
+      if (content.charCodeAt(0) === 0xfeff) {
+        content = content.slice(1);
+      }
+      const stream = Readable.from(content);
+
+      stream
+        .pipe(csvParser())
+        .on('data', (data: CsvRow) => {
+          // Trim all values to remove extra whitespace
+          const trimmedData: CsvRow = {};
+          for (const key in data) {
+            const trimmedKey = key.trim();
+            trimmedData[trimmedKey] =
+              typeof data[key] === 'string' ? data[key].trim() : data[key];
+          }
+          results.push(trimmedData);
+        })
+        .on('end', () => resolve(results))
+        .on('error', (error: Error) => reject(error));
+    });
+  }
+
+  /**
+   * Import exercises from CSV
+   */
+  private async importExercises(lessonId: number, buffer: Buffer) {
+    const stats = { created: 0, skipped: 0, failed: 0, errors: [] as string[] };
+
+    try {
+      const exercises = await this.parseCsv(buffer);
+
+      for (const row of exercises) {
+        try {
+          // Check for duplicate (same lessonId and order)
+          const order = parseInt(row.order || '0');
+          const existing = await this.prisma.exercise.findFirst({
+            where: {
+              lessonId,
+              order,
+            },
+          });
+
+          if (existing) {
+            stats.skipped++;
+            stats.errors?.push(
+              `Exercise with order ${order} already exists in lesson ${lessonId}`,
+            );
+            continue;
+          }
+
+          // Map CSV columns to Exercise model
+          const type = row.type as ExerciseType;
+
+          if (!type) {
+            stats.failed++;
+            stats.errors?.push(
+              `Exercise at order ${order} is missing required field 'type'`,
+            );
+            continue;
+          }
+
+          // Validate exercise type
+          const validTypes = Object.values(ExerciseType);
+          if (!validTypes.includes(type)) {
+            stats.failed++;
+            stats.errors?.push(
+              `Exercise at order ${order} has invalid type '${row.type}'. Valid types: ${validTypes.join(', ')}`,
+            );
+            continue;
+          }
+
+          await this.prisma.exercise.create({
+            data: {
+              lessonId,
+              type,
+              order,
+              prompt: row.prompt === '\\N' || !row.prompt ? null : row.prompt,
+              imageUrl:
+                row.imageUrl === '\\N' || !row.imageUrl ? null : row.imageUrl,
+              audioUrl:
+                row.audioUrl === '\\N' || !row.audioUrl ? null : row.audioUrl,
+              targetText:
+                row.targetText === '\\N' || !row.targetText
+                  ? null
+                  : row.targetText,
+              hintEn: row.hintEn === '\\N' || !row.hintEn ? null : row.hintEn,
+              hintVi: row.hintVi === '\\N' || !row.hintVi ? null : row.hintVi,
+              points: row.points ? parseInt(row.points) : 10,
+              difficulty: row.difficulty ? parseInt(row.difficulty) : 1,
+            },
+          });
+
+          stats.created++;
+        } catch (error: any) {
+          stats.failed++;
+          stats.errors?.push(
+            `Failed to import exercise at order ${row.order}: ${error.message}`,
+          );
+        }
+      }
+    } catch (error: any) {
+      throw new BadRequestException(
+        `Failed to parse exercises CSV: ${error.message}`,
+      );
+    }
+
+    return stats;
+  }
+
+  /**
+   * Import exercise options from CSV
+   */
+  private async importOptions(buffer: Buffer) {
+    const stats = { created: 0, skipped: 0, failed: 0, errors: [] as string[] };
+
+    try {
+      const options = await this.parseCsv(buffer);
+
+      for (const row of options) {
+        try {
+          const exerciseId = parseInt(row.exerciseId || '0');
+          const order = parseInt(row.order || '0');
+
+          // Verify exercise exists
+          const exercise = await this.prisma.exercise.findUnique({
+            where: { id: exerciseId },
+          });
+
+          if (!exercise) {
+            stats.failed++;
+            stats.errors?.push(
+              `Exercise with ID ${exerciseId} not found for option at order ${order}`,
+            );
+            continue;
+          }
+
+          // Check for duplicate (same exerciseId and order)
+          const existing = await this.prisma.exerciseOption.findFirst({
+            where: {
+              exerciseId,
+              order,
+            },
+          });
+
+          if (existing) {
+            stats.skipped++;
+            stats.errors?.push(
+              `Option with order ${order} already exists for exercise ${exerciseId}`,
+            );
+            continue;
+          }
+
+          // Map CSV columns to ExerciseOption model
+          const optionData = {
+            exerciseId,
+            text: row.text === '\\N' || !row.text ? null : row.text,
+            imageUrl:
+              row.imageUrl === '\\N' || !row.imageUrl ? null : row.imageUrl,
+            audioUrl:
+              row.audioUrl === '\\N' || !row.audioUrl ? null : row.audioUrl,
+            isCorrect: row.isCorrect === 'TRUE' || row.isCorrect === 'true',
+            order,
+            matchKey:
+              row.matchKey === '\\N' || !row.matchKey ? null : row.matchKey,
+          };
+
+          await this.prisma.exerciseOption.create({
+            data: optionData,
+          });
+
+          stats.created++;
+        } catch (error: any) {
+          stats.failed++;
+          stats.errors?.push(
+            `Failed to import option for exercise ${row.exerciseId} at order ${row.order}: ${error.message}`,
+          );
+        }
+      }
+    } catch (error: any) {
+      throw new BadRequestException(
+        `Failed to parse options CSV: ${error.message}`,
+      );
+    }
+
+    return stats;
   }
 }
