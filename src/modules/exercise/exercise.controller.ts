@@ -27,6 +27,7 @@ import {
 import { ExerciseService } from './exercise.service';
 import {
   CreateExerciseDto,
+  CreateManyExercisesDto,
   CreateOptionDto,
   ExerciseDto,
   ExerciseOptionDto,
@@ -125,6 +126,27 @@ export class ExerciseController {
   })
   async create(@Body() createExerciseDto: CreateExerciseDto) {
     return this.exerciseService.create(createExerciseDto);
+  }
+
+  @Post('bulk')
+  //   @UseGuards(JwtAuthGuard)
+  //   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create multiple exercises at once' })
+  @ApiResponse({
+    status: 201,
+    description: 'Exercises created successfully',
+    type: [ExerciseDto],
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation failed',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'One or more lessons not found',
+  })
+  async createMany(@Body() createManyDto: CreateManyExercisesDto) {
+    return this.exerciseService.createMany(createManyDto);
   }
 
   @Put(':id')

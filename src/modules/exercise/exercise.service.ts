@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateExerciseDto,
+  CreateManyExercisesDto,
   CreateOptionDto,
   UpdateExerciseDto,
   UpdateOptionDto,
@@ -152,6 +153,114 @@ export class ExerciseService {
           },
         },
       });
+    });
+  }
+
+  /**
+   * Create multiple exercises at once
+   * @param createManyDto - DTO containing array of exercises to create
+   * @returns Array of created exercises with their options
+   */
+  async createMany(createManyDto: CreateManyExercisesDto) {
+    const exercises: CreateExerciseDto[] =
+      createManyDto.exercises as CreateExerciseDto[];
+
+    if (!exercises || exercises.length === 0) {
+      throw new BadRequestException('No exercises provided');
+    }
+
+    // Get all unique lesson IDs and validate they exist
+    const lessonIds = [
+      ...new Set(exercises.map((exercise) => exercise.lessonId)),
+    ];
+    const lessons = await this.prisma.lesson.findMany({
+      where: { id: { in: lessonIds } },
+    });
+
+    if (lessons.length !== lessonIds.length) {
+      const foundIds = new Set(lessons.map((lesson) => lesson.id));
+      const missingIds = lessonIds.filter((id) => !foundIds.has(id));
+      throw new NotFoundException(
+        `Lessons with IDs ${missingIds.join(', ')} not found`,
+      );
+    }
+
+    // Group exercises by lessonId to handle ordering
+    const exercisesByLesson: Record<number, CreateExerciseDto[]> = {};
+    for (const exercise of exercises) {
+      if (!exercisesByLesson[exercise.lessonId]) {
+        exercisesByLesson[exercise.lessonId] = [];
+      }
+      exercisesByLesson[exercise.lessonId].push(exercise);
+    }
+
+    // Get the current max order for each lesson
+    const maxOrdersByLesson: Record<number, number> = {};
+    for (const lessonId of lessonIds) {
+      const lastExercise = await this.prisma.exercise.findFirst({
+        where: { lessonId },
+        orderBy: { order: 'desc' },
+      });
+      maxOrdersByLesson[lessonId] = lastExercise ? lastExercise.order + 1 : 0;
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const createdExercises = [];
+
+      // Process exercises by lesson to maintain proper ordering
+      for (const lessonId of lessonIds) {
+        const lessonExercises = exercisesByLesson[lessonId];
+        let currentOrder = maxOrdersByLesson[lessonId];
+
+        for (const exerciseDto of lessonExercises) {
+          const { options, ...exerciseData } = exerciseDto;
+
+          // Create the exercise
+          const exercise = await tx.exercise.create({
+            data: {
+              ...exerciseData,
+              order: exerciseDto.order ?? currentOrder++,
+            },
+          });
+
+          // Create options if provided
+          if (options && options.length > 0) {
+            await Promise.all(
+              options.map((option, index) =>
+                tx.exerciseOption.create({
+                  data: {
+                    exerciseId: exercise.id,
+                    text: option.text,
+                    imageUrl: option.imageUrl,
+                    audioUrl: option.audioUrl,
+                    isCorrect: option.isCorrect,
+                    matchKey: option.matchKey,
+                    order: option.order ?? index,
+                  },
+                }),
+              ),
+            );
+          }
+
+          // Fetch the created exercise with options
+          const createdExercise = await tx.exercise.findUnique({
+            where: { id: exercise.id },
+            include: {
+              options: {
+                orderBy: {
+                  order: 'asc',
+                },
+              },
+            },
+          });
+
+          if (createdExercise) {
+            createdExercises.push(createdExercise);
+          }
+        }
+      }
+
+      return createdExercises;
     });
   }
 
