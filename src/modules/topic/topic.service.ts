@@ -50,6 +50,7 @@ export class TopicService {
           select: {
             lessons: true,
             flashcards: true,
+            sentenceImages: true,
           },
         },
       },
@@ -92,6 +93,7 @@ export class TopicService {
           select: {
             lessons: true,
             flashcards: true,
+            sentenceImages: true,
           },
         },
       },
@@ -135,6 +137,9 @@ export class TopicService {
             flashcards: {
               where: { isActive: true },
             },
+            sentenceImages: {
+              where: { isActive: true },
+            },
           },
         },
         lessons: {
@@ -166,6 +171,7 @@ export class TopicService {
       grade: topic.grade,
       totalLessons: stats?._count?.lessons ?? 0,
       totalFlashcards: stats?._count?.flashcards ?? 0,
+      totalSentenceImages: stats?._count?.sentenceImages ?? 0,
       totalExercises,
       totalAttempts,
     };
