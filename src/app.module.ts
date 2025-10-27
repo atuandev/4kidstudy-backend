@@ -10,6 +10,7 @@ import { UserModule } from './modules/user/user.module';
 import { LessonModule } from './modules/lesson/lesson.module';
 import { ExerciseModule } from './modules/exercise/exercise.module';
 import { SentenceModule } from './modules/sentence/sentence.module';
+import { AttemptModule } from './modules/attempt/attempt.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { SentenceModule } from './modules/sentence/sentence.module';
     LessonModule,
     ExerciseModule,
     SentenceModule,
+    AttemptModule,
   ],
   controllers: [AppController],
   providers: [AppService],
