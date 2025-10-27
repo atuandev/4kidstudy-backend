@@ -92,7 +92,7 @@ export class UserService {
       const completedLessons = await tx.attempt.count({
         where: {
           userId: id,
-          completedAt: { not: null },
+          isCompleted: true,
         },
       });
 

@@ -77,9 +77,8 @@ model User {
   attempts   Attempt[]
   xpLogs     XPLog[]
   streakLogs StreakLog[]
-  media      MediaAsset[] @relation("UserMedia")
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
 
   @@index([role])
 }
@@ -93,11 +92,11 @@ model Topic {
   coverImage  String?
   isActive    Boolean    @default(true)
 
-  lessons    Lesson[]
-  flashcards Flashcard[]
+  lessons        Lesson[]
+  flashcards     Flashcard[]
   sentenceImages SentenceImage[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@unique([title, grade])
   @@index([grade, isActive])
@@ -141,8 +140,8 @@ model Exercise {
   imageUrl   String? // SELECT_IMAGE / MULTIPLE_CHOICE minh họa
   audioUrl   String? // LISTENING prompt
   targetText String? // đích: từ/cụm cần đọc (PRONUNCIATION) hoặc đáp án chuẩn (LISTENING)
-  hintEn     String? 
-  hintVi     String? 
+  hintEn     String?
+  hintVi     String?
   points     Int     @default(10)
   difficulty Int     @default(1) // 1-3
 
@@ -193,21 +192,21 @@ model Flashcard {
   order     Int     @default(0)
   isActive  Boolean @default(true)
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([topicId, order])
   @@index([topicId, isActive])
 }
 
 model SentenceImage {
-  id        Int      @id @default(autoincrement())
-  topicId   Int
-  topic     Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  imageUrl  String
-  audioUrl  String?
-  order     Int     @default(0)
-  isActive  Boolean @default(true)
+  id       Int     @id @default(autoincrement())
+  topicId  Int
+  topic    Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  imageUrl String
+  audioUrl String?
+  order    Int     @default(0)
+  isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -218,15 +217,15 @@ model SentenceImage {
 }
 
 model Sentence {
-  id        Int      @id @default(autoincrement())
+  id              Int           @id @default(autoincrement())
   sentenceImageId Int
-  sentenceImage SentenceImage @relation(fields: [sentenceImageId], references: [id], onDelete: Cascade)
-  text      String
-  meaningVi String?
-  hintVi    String?
-  audioUrl  String?
-  order     Int     @default(0)
-  isActive  Boolean @default(true)
+  sentenceImage   SentenceImage @relation(fields: [sentenceImageId], references: [id], onDelete: Cascade)
+  text            String
+  meaningVi       String?
+  hintVi          String?
+  audioUrl        String?
+  order           Int           @default(0)
+  isActive        Boolean       @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -242,17 +241,24 @@ model Attempt {
   lessonId Int
   lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
-  startedAt   DateTime  @default(now())
-  completedAt DateTime?
-  durationSec Int? // tính xong thì set
-  totalScore  Int       @default(0)
-  xpEarned    Int       @default(0)
+  durationSec Int?
+  totalScore     Int   @default(0)
+  maxScore       Int   @default(0)
+  accuracyPct    Float @default(0)
+  correctCount   Int   @default(0)
+  incorrectCount Int   @default(0)
+  skipCount      Int   @default(0)
+
+  attemptNumber Int     @default(1)
+  isCompleted   Boolean @default(false)
 
   details   AttemptDetail[]
   createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
+  @@index([userId])
+  @@index([lessonId])
   @@index([userId, lessonId])
-  @@index([completedAt])
 }
 
 model AttemptDetail {
@@ -263,16 +269,24 @@ model AttemptDetail {
   exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
 
   isCorrect        Boolean
-  answerText       String?
   selectedOptionId Int?
   selectedOption   ExerciseOption? @relation(fields: [selectedOptionId], references: [id])
-  points           Int             @default(0)
-  timeMs           Int?
-  // Nếu là PRONUNCIATION sẽ có bản ghi ở PronunciationScore liên kết sang detail này
+
+  timeSec   Int?
+  points    Int  @default(0)
+  maxPoints Int  @default(10)
+  attempts Int @default(1)
 
   pronunciation PronunciationScore?
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([attemptId])
+  @@index([exerciseId])
   @@index([attemptId, exerciseId])
+  @@index([exerciseId, isCorrect])
+  @@index([isCorrect, createdAt])
 }
 
 model PronunciationScore {
@@ -280,16 +294,14 @@ model PronunciationScore {
   attemptDetailId Int           @unique
   detail          AttemptDetail @relation(fields: [attemptDetailId], references: [id], onDelete: Cascade)
 
-  // Chỉ số từ Azure AI Speech
   accuracy     Float?
   fluency      Float?
   completeness Float?
   prosody      Float?
   overall      Float?
 
-  // Lưu JSON thô để có thể debug / hiển thị chi tiết per-phoneme, per-word
   rawJson  Json?
-  audioUrl String? // bản ghi của học viên (S3 key)
+  audioUrl String?
 
   createdAt DateTime @default(now())
 }
@@ -311,25 +323,9 @@ model StreakLog {
   id       Int      @id @default(autoincrement())
   userId   Int
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  day      DateTime // UTC 00:00 của ngày đó
+  day      DateTime
   xpEarned Int      @default(0)
 
   @@unique([userId, day])
   @@index([day])
-}
-
-// Media chung (ảnh, audio) lưu S3 key; dùng lại ở nhiều nơi nếu muốn
-model MediaAsset {
-  id        Int       @id @default(autoincrement())
-  ownerId   Int?
-  owner     User?     @relation("UserMedia", fields: [ownerId], references: [id])
-  type      MediaType
-  bucket    String
-  objectKey String
-  mimeType  String?
-  sizeBytes Int?
-  createdAt DateTime  @default(now())
-
-  @@index([type, createdAt])
-  @@index([ownerId, createdAt])
 }
