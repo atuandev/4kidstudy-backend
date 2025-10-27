@@ -58,6 +58,11 @@ enum GradeLevel {
   GRADE_5
 }
 
+enum LearningContentType {
+  FLASHCARD
+  SENTENCE
+}
+
 model User {
   id           Int       @id @default(autoincrement())
   email        String    @unique
@@ -74,11 +79,12 @@ model User {
   isActive   Boolean @default(true)
 
   // Quan hệ
-  attempts   Attempt[]
-  xpLogs     XPLog[]
-  streakLogs StreakLog[]
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  attempts         Attempt[]
+  xpLogs           XPLog[]
+  streakLogs       StreakLog[]
+  learningProgress LearningProgress[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   @@index([role])
 }
@@ -192,8 +198,9 @@ model Flashcard {
   order     Int     @default(0)
   isActive  Boolean @default(true)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  progress  LearningProgress[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
   @@unique([topicId, order])
   @@index([topicId, isActive])
@@ -227,8 +234,9 @@ model Sentence {
   order           Int           @default(0)
   isActive        Boolean       @default(true)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  progress  LearningProgress[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
   @@unique([sentenceImageId, order])
 }
@@ -241,7 +249,7 @@ model Attempt {
   lessonId Int
   lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
-  durationSec Int?
+  durationSec    Int?
   totalScore     Int   @default(0)
   maxScore       Int   @default(0)
   accuracyPct    Float @default(0)
@@ -275,7 +283,7 @@ model AttemptDetail {
   timeSec   Int?
   points    Int  @default(0)
   maxPoints Int  @default(10)
-  attempts Int @default(1)
+  attempts  Int  @default(1)
 
   pronunciation PronunciationScore?
 
@@ -328,4 +336,30 @@ model StreakLog {
 
   @@unique([userId, day])
   @@index([day])
+}
+
+model LearningProgress {
+  id             Int                 @id @default(autoincrement())
+  reviewCount    Int                 @default(0)
+  isMastered     Boolean             @default(false)
+  lastReviewedAt DateTime?
+  contentType    LearningContentType
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId      Int
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcardId Int?
+  flashcard   Flashcard? @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  sentenceId  Int?
+  sentence    Sentence?  @relation(fields: [sentenceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentType, flashcardId])
+  @@unique([userId, contentType, sentenceId])
+  @@index([userId])
+  @@index([flashcardId])
+  @@index([sentenceId])
+  @@index([userId, contentType, isMastered])
+  @@index([contentType])
 }
