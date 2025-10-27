@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { LessonStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTopicDto, UpdateTopicDto, GradeLevel } from './dtos/index';
 
@@ -29,6 +29,7 @@ export class TopicService {
       orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
       include: {
         lessons: {
+          where: { status: LessonStatus.PUBLISHED || LessonStatus.ARCHIVED },
           select: {
             id: true,
             title: true,
@@ -62,6 +63,7 @@ export class TopicService {
       where: { id },
       include: {
         lessons: {
+          where: { status: LessonStatus.PUBLISHED || LessonStatus.ARCHIVED },
           select: {
             id: true,
             title: true,
