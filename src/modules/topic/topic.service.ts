@@ -29,12 +29,21 @@ export class TopicService {
       orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
       include: {
         lessons: {
-          where: { status: LessonStatus.PUBLISHED || LessonStatus.ARCHIVED },
+          where: {
+            status: {
+              in: [LessonStatus.PUBLISHED, LessonStatus.ARCHIVED],
+            },
+          },
           select: {
             id: true,
             title: true,
             status: true,
             order: true,
+            _count: {
+              select: {
+                exercises: true,
+              },
+            },
           },
           orderBy: { order: 'asc' },
         },
@@ -63,7 +72,11 @@ export class TopicService {
       where: { id },
       include: {
         lessons: {
-          where: { status: LessonStatus.PUBLISHED || LessonStatus.ARCHIVED },
+          where: {
+            status: {
+              in: [LessonStatus.PUBLISHED, LessonStatus.ARCHIVED],
+            },
+          },
           select: {
             id: true,
             title: true,
@@ -73,6 +86,11 @@ export class TopicService {
             coverImage: true,
             createdAt: true,
             updatedAt: true,
+            _count: {
+              select: {
+                exercises: true,
+              },
+            },
           },
           orderBy: { order: 'asc' },
         },
