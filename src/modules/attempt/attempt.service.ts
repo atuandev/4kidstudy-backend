@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import {
   CreateAttemptDto,
   CreateAttemptDetailDto,
@@ -329,20 +330,46 @@ export class AttemptService {
     // Recalculate final statistics
     await this.recalculateAttemptStats(attemptId);
 
-    // Update attempt
-    const updatedAttempt = await this.prisma.attempt.update({
+    // Get updated stats for XP calculation
+    const updatedAttemptData = await this.prisma.attempt.findUnique({
       where: { id: attemptId },
-      data: {
-        isCompleted: true,
-        durationSec,
-      },
-      include: {
-        details: {
-          include: {
-            pronunciation: true,
+    });
+
+    if (!updatedAttemptData) {
+      throw new NotFoundException(`Attempt with ID ${attemptId} not found`);
+    }
+
+    // Use transaction to ensure atomicity
+    const updatedAttempt = await this.prisma.$transaction(async (tx) => {
+      // Update attempt as completed
+      const completed = await tx.attempt.update({
+        where: { id: attemptId },
+        data: {
+          isCompleted: true,
+          durationSec,
+        },
+        include: {
+          details: {
+            include: {
+              pronunciation: true,
+            },
           },
         },
-      },
+      });
+
+      // Award XP based on the score
+      await this.awardXpForAttempt(
+        tx,
+        attempt.userId,
+        attemptId,
+        attempt.lessonId,
+        updatedAttemptData.totalScore,
+      );
+
+      // Update streak
+      await this.updateUserStreak(tx, attempt.userId);
+
+      return completed;
     });
 
     return this.mapToAttemptResponse(updatedAttempt);
@@ -454,6 +481,131 @@ export class AttemptService {
     });
 
     return attempts.map((attempt) => this.mapToAttemptResponse(attempt));
+  }
+
+  /**
+   * Award XP for completing an attempt
+   */
+  private async awardXpForAttempt(
+    tx: Prisma.TransactionClient,
+    userId: number,
+    attemptId: number,
+    lessonId: number,
+    totalScore: number,
+  ): Promise<void> {
+    // Calculate XP based on score (1:1 ratio for now, can be adjusted)
+    const xpAmount = totalScore;
+    if (xpAmount <= 0) {
+      return;
+    }
+    // Create XP log entry
+    await tx.xPLog.create({
+      data: {
+        userId,
+        amount: xpAmount,
+        source: 'LESSON_COMPLETE',
+        lessonId,
+      },
+    });
+    // Update user's total XP
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        xp: {
+          increment: xpAmount,
+        },
+      },
+    });
+  }
+
+  /**
+   * Update user's streak days
+   */
+  private async updateUserStreak(
+    tx: Prisma.TransactionClient,
+    userId: number,
+  ): Promise<void> {
+    // Get today's date at midnight (UTC)
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    // Check if user already has a streak log for today
+    const todayLog = await tx.streakLog.findUnique({
+      where: {
+        userId_day: {
+          userId,
+          day: today,
+        },
+      },
+    });
+    // If already logged today, just update XP earned
+    if (todayLog) {
+      // Get today's total XP
+      const todayXpLogs = await tx.xPLog.findMany({
+        where: {
+          userId,
+          createdAt: {
+            gte: today,
+          },
+        },
+      });
+      const totalXpToday = todayXpLogs.reduce(
+        (sum, log) => sum + log.amount,
+        0,
+      );
+      await tx.streakLog.update({
+        where: { id: todayLog.id },
+        data: { xpEarned: totalXpToday },
+      });
+      return;
+    }
+    // Get yesterday's date
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    // Check if user practiced yesterday
+    const yesterdayLog = await tx.streakLog.findUnique({
+      where: {
+        userId_day: {
+          userId,
+          day: yesterday,
+        },
+      },
+    });
+    // Get current user data
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { streakDays: true },
+    });
+    let newStreakDays: number;
+    if (yesterdayLog || user?.streakDays === 0) {
+      // Continue or start streak
+      newStreakDays = (user?.streakDays || 0) + 1;
+    } else {
+      // Streak broken, reset to 1
+      newStreakDays = 1;
+    }
+    // Update user's streak days
+    await tx.user.update({
+      where: { id: userId },
+      data: { streakDays: newStreakDays },
+    });
+    // Get today's total XP
+    const todayXpLogs = await tx.xPLog.findMany({
+      where: {
+        userId,
+        createdAt: {
+          gte: today,
+        },
+      },
+    });
+    const totalXpToday = todayXpLogs.reduce((sum, log) => sum + log.amount, 0);
+    // Create today's streak log
+    await tx.streakLog.create({
+      data: {
+        userId,
+        day: today,
+        xpEarned: totalXpToday,
+      },
+    });
   }
 
   /**
