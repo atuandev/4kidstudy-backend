@@ -149,7 +149,7 @@ export class LearningProgressService {
     const { contentType, flashcardId, sentenceId, isMastered } = reviewDto;
 
     // Find existing progress
-    const progress = await this.prisma.learningProgress.findFirst({
+    let progress = await this.prisma.learningProgress.findFirst({
       where: {
         userId,
         contentType,
@@ -158,11 +158,21 @@ export class LearningProgressService {
       },
     });
 
+    // If progress doesn't exist, create it first
     if (!progress) {
-      throw new NotFoundException('Learning progress not found');
+      progress = await this.prisma.learningProgress.create({
+        data: {
+          userId,
+          contentType,
+          flashcardId,
+          sentenceId,
+          reviewCount: 0,
+          isMastered: false,
+        },
+      });
     }
 
-    // Update progress
+    // Update progress (increment review count)
     const updatedProgress = await this.prisma.learningProgress.update({
       where: { id: progress.id },
       data: {
@@ -467,6 +477,173 @@ export class LearningProgressService {
       updatedAt: progress.updatedAt,
       ...(flashcard && { flashcard }),
       ...(sentence && { sentence }),
+    };
+  }
+
+  /**
+   * Get learning progress by topic for a user
+   */
+  async getTopicProgress(
+    userId: number,
+    topicId: number,
+  ): Promise<{
+    topicId: number;
+    totalFlashcards: number;
+    reviewedFlashcards: number;
+    flashcardProgress: number;
+    totalSentences: number;
+    reviewedSentences: number;
+    sentenceProgress: number;
+    lastReviewedFlashcardIndex?: number;
+    lastReviewedSentenceIndex?: number;
+  }> {
+    // Count total flashcards in topic
+    const totalFlashcards = await this.prisma.flashcard.count({
+      where: { topicId },
+    });
+
+    // Count reviewed flashcards by user in this topic
+    const reviewedFlashcards = await this.prisma.learningProgress.count({
+      where: {
+        userId,
+        contentType: LearningContentType.FLASHCARD,
+        flashcard: {
+          topicId,
+        },
+      },
+    });
+
+    // Get all reviewed flashcards to find the one with highest index
+    const reviewedFlashcardsList = await this.prisma.learningProgress.findMany({
+      where: {
+        userId,
+        contentType: LearningContentType.FLASHCARD,
+        flashcard: {
+          topicId,
+        },
+      },
+      include: {
+        flashcard: true,
+      },
+    });
+
+    // Find the index of the furthest reviewed flashcard (highest order)
+    let lastReviewedFlashcardIndex: number | undefined = undefined;
+    if (reviewedFlashcardsList.length > 0) {
+      const allFlashcards = await this.prisma.flashcard.findMany({
+        where: { topicId },
+        orderBy: { order: 'asc' },
+        select: { id: true, order: true },
+      });
+
+      // Find the highest index among reviewed flashcards
+      let maxIndex = -1;
+      reviewedFlashcardsList.forEach((progress) => {
+        if (progress.flashcard) {
+          const index = allFlashcards.findIndex(
+            (f) => f.id === progress.flashcard?.id,
+          );
+          if (index > maxIndex) {
+            maxIndex = index;
+          }
+        }
+      });
+
+      if (maxIndex >= 0) {
+        lastReviewedFlashcardIndex = maxIndex;
+      }
+    }
+
+    // Count total sentences in topic
+    const totalSentences = await this.prisma.sentence.count({
+      where: {
+        sentenceImage: {
+          topicId,
+        },
+      },
+    });
+
+    // Count reviewed sentences by user in this topic
+    const reviewedSentences = await this.prisma.learningProgress.count({
+      where: {
+        userId,
+        contentType: LearningContentType.SENTENCE,
+        sentence: {
+          sentenceImage: {
+            topicId,
+          },
+        },
+      },
+    });
+
+    // Get all reviewed sentences to find the one with highest index
+    const reviewedSentencesList = await this.prisma.learningProgress.findMany({
+      where: {
+        userId,
+        contentType: LearningContentType.SENTENCE,
+        sentence: {
+          sentenceImage: {
+            topicId,
+          },
+        },
+      },
+      include: {
+        sentence: {
+          include: {
+            sentenceImage: true,
+          },
+        },
+      },
+    });
+
+    // Find the index of the furthest reviewed sentence (highest order)
+    let lastReviewedSentenceIndex: number | undefined = undefined;
+    if (reviewedSentencesList.length > 0) {
+      const allSentenceImages = await this.prisma.sentenceImage.findMany({
+        where: { topicId },
+        orderBy: { order: 'asc' },
+        select: { id: true, order: true },
+      });
+
+      // Find the highest index among reviewed sentences
+      let maxIndex = -1;
+      reviewedSentencesList.forEach((progress) => {
+        if (progress.sentence?.sentenceImage) {
+          const index = allSentenceImages.findIndex(
+            (si) => si.id === progress.sentence?.sentenceImageId,
+          );
+          if (index > maxIndex) {
+            maxIndex = index;
+          }
+        }
+      });
+
+      if (maxIndex >= 0) {
+        lastReviewedSentenceIndex = maxIndex;
+      }
+    }
+
+    // Calculate percentages
+    const flashcardProgress =
+      totalFlashcards > 0
+        ? Math.round((reviewedFlashcards / totalFlashcards) * 100 * 10) / 10
+        : 0;
+
+    const sentenceProgress =
+      totalSentences > 0
+        ? Math.round((reviewedSentences / totalSentences) * 100 * 10) / 10
+        : 0;
+
+    return {
+      topicId,
+      totalFlashcards,
+      reviewedFlashcards,
+      flashcardProgress,
+      totalSentences,
+      reviewedSentences,
+      sentenceProgress,
+      lastReviewedFlashcardIndex,
+      lastReviewedSentenceIndex,
     };
   }
 }

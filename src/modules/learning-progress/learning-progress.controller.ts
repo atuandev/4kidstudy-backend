@@ -21,6 +21,7 @@ import {
   LearningProgressResponseDto,
   PaginatedLearningProgressResponseDto,
   LearningProgressStatsResponseDto,
+  TopicProgressResponseDto,
 } from './dtos';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
@@ -72,6 +73,19 @@ export class LearningProgressController {
   ): Promise<LearningProgressStatsResponseDto> {
     const userId = req.user.id;
     return this.learningProgressService.getUserStats(userId);
+  }
+
+  /**
+   * Get learning progress by topic
+   * GET /learning-progress/topic/:topicId
+   */
+  @Get('topic/:topicId')
+  async getTopicProgress(
+    @Request() req: any,
+    @Param('topicId', ParseIntPipe) topicId: number,
+  ): Promise<TopicProgressResponseDto> {
+    const userId = req.user.id;
+    return this.learningProgressService.getTopicProgress(userId, topicId);
   }
 
   /**

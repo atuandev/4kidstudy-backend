@@ -12,7 +12,7 @@ export * from './req/get-learning-progress-query.dto';
 export * from './req/review-content.dto';
 export * from './req/review-content.dto';
 
-// Response DTOs// Response DTOs
+// Response DTOs
 
 export * from './res/learning-progress-response.dto';
-export * from './res/learning-progress-response.dto';
+export * from './res/topic-progress-response.dto';
