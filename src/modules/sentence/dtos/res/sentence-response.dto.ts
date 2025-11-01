@@ -31,4 +31,3 @@ export class SentenceResponseDto {
   @ApiProperty()
   updatedAt: Date;
 }
-

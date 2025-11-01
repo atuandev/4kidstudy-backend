@@ -639,7 +639,7 @@ export class ExerciseService {
           // Check for duplicate (same lessonId and order)
           const order = parseInt(row.order || '0');
           const csvId = parseInt(row.id || '0'); // Get CSV ID for mapping
-          
+
           const existing = await this.prisma.exercise.findFirst({
             where: {
               lessonId,
@@ -702,7 +702,7 @@ export class ExerciseService {
           });
 
           stats.created++;
-          
+
           // Map CSV ID to Database ID
           if (csvId) {
             idMap.set(csvId, createdExercise.id);

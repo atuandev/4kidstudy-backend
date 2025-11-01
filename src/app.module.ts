@@ -11,6 +11,7 @@ import { LessonModule } from './modules/lesson/lesson.module';
 import { ExerciseModule } from './modules/exercise/exercise.module';
 import { SentenceModule } from './modules/sentence/sentence.module';
 import { AttemptModule } from './modules/attempt/attempt.module';
+import { LearningProgressModule } from './modules/learning-progress/learning-progress.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AttemptModule } from './modules/attempt/attempt.module';
     ExerciseModule,
     SentenceModule,
     AttemptModule,
+    LearningProgressModule,
   ],
   controllers: [AppController],
   providers: [AppService],
