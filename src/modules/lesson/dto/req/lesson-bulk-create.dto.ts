@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, Min, IsArray, ArrayMinSize } from 'class-validator';
-import { CreateLessonDto } from './create-lesson.dto';
+import { IsInt, Min, IsArray, ArrayMinSize, ValidateNested } from 'class-validator';
+import { LessonItemDto } from './lesson-item.dto';
 import { Type } from 'class-transformer';
 
 export class LessonBulkCreateDto {
@@ -15,10 +15,11 @@ export class LessonBulkCreateDto {
 
   @ApiProperty({
     description: 'Array of lesson data',
-    type: [CreateLessonDto],
+    type: [LessonItemDto],
   })
   @IsArray()
   @ArrayMinSize(1)
-  @Type(() => CreateLessonDto)
-  lessons: Omit<CreateLessonDto, 'topicId'>[];
+  @ValidateNested({ each: true })
+  @Type(() => LessonItemDto)
+  lessons: LessonItemDto[];
 }
