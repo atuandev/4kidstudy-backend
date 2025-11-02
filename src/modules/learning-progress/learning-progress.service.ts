@@ -646,4 +646,50 @@ export class LearningProgressService {
       lastReviewedSentenceIndex,
     };
   }
+
+  /**
+   * Get the last reviewed topic ID for a user
+   */
+  async getLastReviewedTopic(userId: number): Promise<number | null> {
+    // Get the most recent learning progress entry
+    const lastProgress = await this.prisma.learningProgress.findFirst({
+      where: {
+        userId,
+      },
+      include: {
+        flashcard: {
+          select: {
+            topicId: true,
+          },
+        },
+        sentence: {
+          select: {
+            sentenceImage: {
+              select: {
+                topicId: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        lastReviewedAt: 'desc',
+      },
+    });
+
+    if (!lastProgress) {
+      return null;
+    }
+
+    // Return topicId from flashcard or sentence
+    if (lastProgress.flashcard) {
+      return lastProgress.flashcard.topicId;
+    }
+
+    if (lastProgress.sentence?.sentenceImage) {
+      return lastProgress.sentence.sentenceImage.topicId;
+    }
+
+    return null;
+  }
 }

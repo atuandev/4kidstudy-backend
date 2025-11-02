@@ -89,6 +89,20 @@ export class LearningProgressController {
   }
 
   /**
+   * Get last reviewed topic ID
+   * GET /learning-progress/last-topic
+   */
+  @Get('last-topic')
+  async getLastReviewedTopic(
+    @Request() req: any,
+  ): Promise<{ topicId: number | null }> {
+    const userId = req.user.id;
+    const topicId =
+      await this.learningProgressService.getLastReviewedTopic(userId);
+    return { topicId };
+  }
+
+  /**
    * Get user's learning progress list (paginated)
    * GET /learning-progress
    */
