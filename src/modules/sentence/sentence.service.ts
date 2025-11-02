@@ -11,6 +11,7 @@ import {
   UpdateSentenceImageDto,
   UpdateSentenceDto,
   CreateSentenceImageWithSentencesDto,
+  SentenceBulkCreateDto,
 } from './dtos/index';
 
 type SentenceImageWithSentences = SentenceImage & {
@@ -149,6 +150,95 @@ export class SentenceService {
         ...sentenceImage,
         sentences,
       };
+    });
+  }
+
+  /**
+   * Create multiple sentence images with sentences in bulk
+   */
+  async createBulk(
+    sentenceBulkCreateDto: SentenceBulkCreateDto,
+  ): Promise<SentenceImageWithSentences[]> {
+    // Check if topic exists
+    const topic = await this.prisma.topic.findUnique({
+      where: { id: sentenceBulkCreateDto.topicId },
+    });
+
+    if (!topic) {
+      throw new NotFoundException(
+        `Topic with ID ${sentenceBulkCreateDto.topicId} not found`,
+      );
+    }
+
+    if (
+      !sentenceBulkCreateDto.sentenceImages ||
+      sentenceBulkCreateDto.sentenceImages.length === 0
+    ) {
+      throw new BadRequestException('Sentence images array cannot be empty');
+    }
+
+    // Get the current max order for this topic
+    const maxOrderSentenceImage = await this.prisma.sentenceImage.findFirst({
+      where: { topicId: sentenceBulkCreateDto.topicId },
+      orderBy: { order: 'desc' },
+      select: { order: true },
+    });
+
+    const startOrder = maxOrderSentenceImage
+      ? maxOrderSentenceImage.order + 1
+      : 0;
+
+    return this.prisma.$transaction(async (tx) => {
+      const createdSentenceImages: SentenceImageWithSentences[] = [];
+
+      for (const [
+        index,
+        sentenceImageData,
+      ] of sentenceBulkCreateDto.sentenceImages.entries()) {
+        // Create sentence image
+        const sentenceImage = await tx.sentenceImage.create({
+          data: {
+            topicId: sentenceBulkCreateDto.topicId,
+            imageUrl: sentenceImageData.imageUrl,
+            audioUrl: sentenceImageData.audioUrl,
+            order: sentenceImageData.order ?? startOrder + index,
+            isActive: sentenceImageData.isActive ?? true,
+          },
+          include: {
+            topic: {
+              select: {
+                id: true,
+                title: true,
+                grade: true,
+              },
+            },
+          },
+        });
+
+        // Create sentences for this image
+        const sentences = await Promise.all(
+          (sentenceImageData.sentences || []).map((sentence, sentenceIndex) =>
+            tx.sentence.create({
+              data: {
+                sentenceImageId: sentenceImage.id,
+                text: sentence.text,
+                meaningVi: sentence.meaningVi,
+                hintVi: sentence.hintVi,
+                audioUrl: sentence.audioUrl,
+                order: sentence.order ?? sentenceIndex,
+                isActive: sentence.isActive ?? true,
+              },
+            }),
+          ),
+        );
+
+        createdSentenceImages.push({
+          ...sentenceImage,
+          sentences,
+        });
+      }
+
+      return createdSentenceImages;
     });
   }
 
