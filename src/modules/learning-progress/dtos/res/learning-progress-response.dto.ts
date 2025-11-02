@@ -1,0 +1,63 @@
+import { LearningContentType } from '@prisma/client';
+
+/**
+ * Response DTO for learning progress
+ */
+export class LearningProgressResponseDto {
+  id: number;
+  userId: number;
+  reviewCount: number;
+  isMastered: boolean;
+  lastReviewedAt?: Date;
+  contentType: LearningContentType;
+  flashcardId?: number;
+  sentenceId?: number;
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Optional related data
+  flashcard?: {
+    id: number;
+    term: string;
+    meaningVi: string;
+    imageUrl?: string;
+    audioUrl?: string;
+  };
+
+  sentence?: {
+    id: number;
+    text: string;
+    meaningVi?: string;
+    audioUrl?: string;
+  };
+}
+
+/**
+ * Response DTO for paginated learning progress
+ */
+export class PaginatedLearningProgressResponseDto {
+  data: LearningProgressResponseDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+/**
+ * Response DTO for learning progress statistics
+ */
+export class LearningProgressStatsResponseDto {
+  totalReviewed: number;
+  totalMastered: number;
+  masteryRate: number;
+  flashcardStats: {
+    total: number;
+    mastered: number;
+    inProgress: number;
+  };
+  sentenceStats: {
+    total: number;
+    mastered: number;
+    inProgress: number;
+  };
+}

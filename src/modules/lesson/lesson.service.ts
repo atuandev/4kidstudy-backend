@@ -1,6 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateLessonDto, UpdateLessonDto } from './dto/index';
+import {
+  CreateLessonDto,
+  UpdateLessonDto,
+  LessonBulkCreateDto,
+} from './dto/index';
 import { Lesson, Prisma } from '@prisma/client';
 
 @Injectable()
@@ -95,6 +103,62 @@ export class LessonService {
       include: {
         topic: true,
       },
+    });
+  }
+
+  async createBulk(lessonBulkCreateDto: LessonBulkCreateDto) {
+    // Check if topic exists
+    const topic = await this.prisma.topic.findUnique({
+      where: { id: lessonBulkCreateDto.topicId },
+    });
+
+    if (!topic) {
+      throw new NotFoundException(
+        `Topic with ID ${lessonBulkCreateDto.topicId} not found`,
+      );
+    }
+
+    if (
+      !lessonBulkCreateDto.lessons ||
+      lessonBulkCreateDto.lessons.length === 0
+    ) {
+      throw new BadRequestException('Lessons array cannot be empty');
+    }
+
+    // Get the current max order for this topic
+    const maxOrderLesson = await this.prisma.lesson.findFirst({
+      where: { topicId: lessonBulkCreateDto.topicId },
+      orderBy: { order: 'desc' },
+      select: { order: true },
+    });
+
+    const startOrder = maxOrderLesson ? maxOrderLesson.order + 1 : 1;
+
+    // Prepare data with topicId
+    const lessonsData = lessonBulkCreateDto.lessons.map((lesson, index) => ({
+      ...lesson,
+      topicId: lessonBulkCreateDto.topicId,
+      order: lesson.order ?? startOrder + index,
+    }));
+
+    return this.prisma.$transaction(async (tx) => {
+      const createdLessons = [];
+      for (const lessonData of lessonsData) {
+        const lesson = await tx.lesson.create({
+          data: lessonData,
+          include: {
+            topic: {
+              select: {
+                id: true,
+                title: true,
+                grade: true,
+              },
+            },
+          },
+        });
+        createdLessons.push(lesson);
+      }
+      return createdLessons;
     });
   }
 

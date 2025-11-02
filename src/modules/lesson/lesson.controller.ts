@@ -9,6 +9,8 @@ import {
   Query,
   ParseIntPipe,
   UseGuards,
+  HttpStatus,
+  HttpCode,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -17,6 +19,7 @@ import {
   ApiQuery,
   ApiResponse,
   ApiTags,
+  ApiBody,
 } from '@nestjs/swagger';
 import { LessonService } from './lesson.service';
 import {
@@ -24,6 +27,7 @@ import {
   LessonQueryParamsDto,
   LessonResponseDto,
   UpdateLessonDto,
+  LessonBulkCreateDto,
 } from './dto/index';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -75,6 +79,31 @@ export class LessonController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async create(@Body() createLessonDto: CreateLessonDto) {
     return this.lessonService.create(createLessonDto);
+  }
+
+  @Post('bulk')
+  @ApiOperation({
+    summary: 'Create multiple lessons',
+    description:
+      'Creates multiple lessons for a specific topic in one operation',
+  })
+  @ApiBody({ type: LessonBulkCreateDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Lessons created successfully',
+    type: [LessonResponseDto],
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation failed or empty lessons array',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Topic not found',
+  })
+  @HttpCode(HttpStatus.CREATED)
+  async createBulkLessons(@Body() lessonBulkCreateDto: LessonBulkCreateDto) {
+    return this.lessonService.createBulk(lessonBulkCreateDto);
   }
 
   @Put(':id')

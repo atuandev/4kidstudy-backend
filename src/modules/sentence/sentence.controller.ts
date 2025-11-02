@@ -28,6 +28,7 @@ import {
   UpdateSentenceDto,
   SentenceImageResponseDto,
   SentenceResponseDto,
+  SentenceBulkCreateDto,
 } from './dtos/index';
 
 @ApiTags('sentences')
@@ -140,6 +141,34 @@ export class SentenceController {
     @Body() createSentenceImageDto: CreateSentenceImageDto,
   ) {
     return this.sentenceService.createSentenceImage(createSentenceImageDto);
+  }
+
+  @Post('bulk')
+  @ApiOperation({
+    summary: 'Create multiple sentence images with sentences',
+    description:
+      'Creates multiple sentence images with their sentences for a specific topic in one operation',
+  })
+  @ApiBody({ type: SentenceBulkCreateDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Sentence images with sentences created successfully',
+    type: [SentenceImageResponseDto],
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad request - validation failed or empty sentence images array',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Topic not found',
+  })
+  @HttpCode(HttpStatus.CREATED)
+  async createBulkSentences(
+    @Body() sentenceBulkCreateDto: SentenceBulkCreateDto,
+  ) {
+    return this.sentenceService.createBulk(sentenceBulkCreateDto);
   }
 
   @Post()

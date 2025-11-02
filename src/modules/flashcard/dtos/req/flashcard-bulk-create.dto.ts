@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, Min } from 'class-validator';
-import { CreateFlashcardDto } from './create-flashcard.dto';
+import { IsInt, Min, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { FlashcardItemDto } from './flashcard-item.dto';
 
 export class FlashcardBulkCreateDto {
   @ApiProperty({
@@ -13,7 +14,10 @@ export class FlashcardBulkCreateDto {
 
   @ApiProperty({
     description: 'Array of flashcard data',
-    type: [CreateFlashcardDto],
+    type: [FlashcardItemDto],
   })
-  flashcards: Omit<CreateFlashcardDto, 'topicId'>[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FlashcardItemDto)
+  flashcards: FlashcardItemDto[];
 }

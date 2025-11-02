@@ -71,4 +71,3 @@ export class CreateSentenceDto {
   @Transform(({ value }) => value === 'true' || value === true)
   isActive?: boolean;
 }
-
