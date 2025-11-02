@@ -385,6 +385,11 @@ export class AttemptService {
         details: {
           include: {
             pronunciation: true,
+            exercise: {
+              include: {
+                options: true,
+              },
+            },
           },
           orderBy: { createdAt: 'asc' },
         },
@@ -671,6 +676,7 @@ export class AttemptService {
   private mapToAttemptDetailResponse(
     detail: AttemptDetailWithPronunciation,
   ): AttemptDetailResponseDto {
+    const exercise = detail.exercise;
     return {
       id: detail.id,
       attemptId: detail.attemptId,
@@ -689,6 +695,34 @@ export class AttemptService {
             prosody: detail.pronunciation.prosody ?? undefined,
             overall: detail.pronunciation.overall ?? undefined,
             audioUrl: detail.pronunciation.audioUrl ?? undefined,
+          }
+        : undefined,
+      exercise: exercise
+        ? {
+            id: exercise.id,
+            lessonId: exercise.lessonId,
+            type: exercise.type,
+            order: exercise.order,
+            prompt: exercise.prompt ?? undefined,
+            imageUrl: exercise.imageUrl ?? undefined,
+            audioUrl: exercise.audioUrl ?? undefined,
+            targetText: exercise.targetText ?? undefined,
+            hintEn: exercise.hintEn ?? undefined,
+            hintVi: exercise.hintVi ?? undefined,
+            points: exercise.points,
+            difficulty: exercise.difficulty,
+            options: exercise.options.map((option) => ({
+              id: option.id,
+              exerciseId: option.exerciseId,
+              text: option.text ?? undefined,
+              imageUrl: option.imageUrl ?? undefined,
+              audioUrl: option.audioUrl ?? undefined,
+              isCorrect: option.isCorrect,
+              order: option.order,
+              matchKey: option.matchKey ?? undefined,
+            })),
+            createdAt: exercise.createdAt,
+            updatedAt: exercise.updatedAt,
           }
         : undefined,
       createdAt: detail.createdAt,
