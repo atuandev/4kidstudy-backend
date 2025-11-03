@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, ExerciseType } from '@prisma/client';
 import {
   CreateAttemptDto,
   CreateAttemptDetailDto,
@@ -14,6 +14,7 @@ import {
   AttemptResponseDto,
   PaginatedAttemptsResponseDto,
   AttemptDetailResponseDto,
+  PracticeStatisticsResponseDto,
 } from './dto';
 import {
   AttemptWithDetails,
@@ -506,6 +507,97 @@ export class AttemptService {
     });
 
     return attempts.map((attempt) => this.mapToAttemptResponse(attempt));
+  }
+
+  /**
+   * Get aggregated practice statistics for a user
+   */
+  async getPracticeStatistics(
+    userId: number,
+  ): Promise<PracticeStatisticsResponseDto> {
+    const [
+      totalLessonCount,
+      completedDistinctLessons,
+      aggDuration,
+      totalCorrectCount,
+      totalIncorrectCount,
+    ] = await Promise.all([
+      this.prisma.lesson.count(),
+      this.prisma.attempt.findMany({
+        where: { userId, isCompleted: true },
+        select: { lessonId: true },
+        distinct: ['lessonId'],
+      }),
+      this.prisma.attempt.aggregate({
+        where: { userId, isCompleted: true },
+        _sum: { durationSec: true },
+      }),
+      this.prisma.attemptDetail.count({
+        where: { isCorrect: true, attempt: { userId } },
+      }),
+      this.prisma.attemptDetail.count({
+        where: { isCorrect: false, attempt: { userId } },
+      }),
+    ]);
+
+    const exerciseTypes: ExerciseType[] = [
+      ExerciseType.SELECT_IMAGE,
+      ExerciseType.MULTIPLE_CHOICE,
+      ExerciseType.MATCHING,
+      ExerciseType.LISTENING,
+      ExerciseType.PRONUNCIATION,
+    ];
+
+    const byType = await Promise.all(
+      exerciseTypes.map(async (type) => {
+        const [correctCount, correctOnSecondCount, incorrectCount] =
+          await Promise.all([
+            this.prisma.attemptDetail.count({
+              where: {
+                isCorrect: true,
+                exercise: { type },
+                attempt: { userId },
+              },
+            }),
+            this.prisma.attemptDetail.count({
+              where: {
+                isCorrect: true,
+                attempts: { gte: 2 },
+                exercise: { type },
+                attempt: { userId },
+              },
+            }),
+            this.prisma.attemptDetail.count({
+              where: {
+                isCorrect: false,
+                exercise: { type },
+                attempt: { userId },
+              },
+            }),
+          ]);
+
+        return {
+          type,
+          correctCount,
+          correctOnSecondCount,
+          incorrectCount,
+        };
+      }),
+    );
+
+    return {
+      completeLessonCount: completedDistinctLessons.length,
+      totalLessonCount,
+      totalDurationSec: aggDuration._sum.durationSec ?? 0,
+      totalCorrectCount,
+      totalIncorrectCount,
+      byType: byType.map((b) => ({
+        type: b.type,
+        correctCount: b.correctCount,
+        correctOnSecondCount: b.correctOnSecondCount,
+        incorrectCount: b.incorrectCount,
+      })),
+    };
   }
 
   /**

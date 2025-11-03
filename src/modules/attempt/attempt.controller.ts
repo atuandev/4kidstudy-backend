@@ -21,6 +21,7 @@ import {
   AttemptResponseDto,
   PaginatedAttemptsResponseDto,
   AttemptDetailResponseDto,
+  PracticeStatisticsResponseDto,
 } from './dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
@@ -91,19 +92,6 @@ export class AttemptController {
   }
 
   /**
-   * Get attempt by ID
-   * GET /attempts/:id
-   */
-  @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  async getAttemptById(
-    @Param('id', ParseIntPipe) attemptId: number,
-  ): Promise<AttemptResponseDto> {
-    return this.attemptService.getAttemptById(attemptId);
-  }
-
-  /**
    * Get attempts with filters and pagination
    * GET /attempts
    */
@@ -142,5 +130,32 @@ export class AttemptController {
   ): Promise<AttemptResponseDto[]> {
     const userId = req.user.id;
     return this.attemptService.getUserLessonAttempts(userId, lessonId);
+  }
+
+  /**
+   * Get user's practice statistics
+   * GET /attempts/statistics
+   */
+  @Get('statistics')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async getPracticeStatistics(
+    @Request() req: any,
+  ): Promise<PracticeStatisticsResponseDto> {
+    const userId = req.user.id;
+    return this.attemptService.getPracticeStatistics(userId);
+  }
+
+  /**
+   * Get attempt by ID
+   * GET /attempts/:id
+   */
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async getAttemptById(
+    @Param('id', ParseIntPipe) attemptId: number,
+  ): Promise<AttemptResponseDto> {
+    return this.attemptService.getAttemptById(attemptId);
   }
 }
