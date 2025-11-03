@@ -175,8 +175,9 @@ model ExerciseOption {
   // Với MATCHING: các phần tử có cùng matchKey là một cặp đúng
   matchKey String? // ví dụ "pair_1" cho cả hình và chữ
 
-  // Back relation for AttemptDetail.selectedOption
-  selectedBy AttemptDetail[]
+  // Back relations for AttemptDetail
+  selectedAsFirst AttemptDetail[] @relation("SelectedAsFirst")
+  selectedAsSecond AttemptDetail[] @relation("SelectedAsSecond")
 
   @@unique([exerciseId, order])
   @@index([exerciseId])
@@ -278,7 +279,9 @@ model AttemptDetail {
 
   isCorrect        Boolean
   selectedOptionId Int?
-  selectedOption   ExerciseOption? @relation(fields: [selectedOptionId], references: [id])
+  selectedOption   ExerciseOption? @relation("SelectedAsFirst", fields: [selectedOptionId], references: [id])
+  selectedOption2Id Int?
+  selectedOption2   ExerciseOption? @relation("SelectedAsSecond", fields: [selectedOption2Id], references: [id])
 
   timeSec   Int?
   points    Int  @default(0)

@@ -88,6 +88,7 @@ export class AttemptService {
       exerciseId,
       isCorrect,
       selectedOptionId,
+      selectedOption2Id,
       timeSec,
       points,
       maxPoints,
@@ -132,6 +133,7 @@ export class AttemptService {
         exerciseId,
         isCorrect,
         selectedOptionId,
+        selectedOption2Id,
         timeSec,
         points: calculatedPoints,
         maxPoints: calculatedMaxPoints,
@@ -185,6 +187,7 @@ export class AttemptService {
       exerciseId,
       isCorrect,
       selectedOptionId,
+      selectedOption2Id,
       timeSec,
       points,
       pronunciation,
@@ -224,12 +227,28 @@ export class AttemptService {
 
     let detail;
     if (existingDetail) {
+      // Update existing detail (this is a retry/second attempt)
+      // If first attempt was wrong and we're not providing selectedOption2Id,
+      // preserve the first wrong answer in selectedOption2Id
+      let selectedOption2IdToSave = selectedOption2Id;
+
+      // If selectedOption2Id is not provided and first attempt was wrong,
+      // move the first wrong answer to selectedOption2Id
+      if (
+        !selectedOption2Id &&
+        !existingDetail.isCorrect &&
+        existingDetail.selectedOptionId
+      ) {
+        selectedOption2IdToSave = existingDetail.selectedOptionId;
+      }
+
       // Update existing detail
       detail = await this.prisma.attemptDetail.update({
         where: { id: existingDetail.id },
         data: {
           isCorrect,
           selectedOptionId,
+          selectedOption2Id: selectedOption2IdToSave,
           timeSec,
           points: calculatedPoints,
           attempts: attemptCount,
@@ -244,6 +263,7 @@ export class AttemptService {
           exerciseId,
           isCorrect,
           selectedOptionId,
+          selectedOption2Id,
           timeSec,
           points: calculatedPoints,
           maxPoints: exercise.points,
@@ -683,6 +703,7 @@ export class AttemptService {
       exerciseId: detail.exerciseId,
       isCorrect: detail.isCorrect,
       selectedOptionId: detail.selectedOptionId ?? undefined,
+      selectedOption2Id: detail.selectedOption2Id ?? undefined,
       timeSec: detail.timeSec ?? undefined,
       points: detail.points,
       maxPoints: detail.maxPoints,
