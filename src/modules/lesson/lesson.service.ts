@@ -135,11 +135,20 @@ export class LessonService {
     const startOrder = maxOrderLesson ? maxOrderLesson.order + 1 : 1;
 
     // Prepare data with topicId
-    const lessonsData = lessonBulkCreateDto.lessons.map((lesson, index) => ({
-      ...lesson,
-      topicId: lessonBulkCreateDto.topicId,
-      order: lesson.order ?? startOrder + index,
-    }));
+    // Only auto-assign order for lessons without an order (new lessons)
+    let autoOrderCounter = startOrder;
+    const lessonsData = lessonBulkCreateDto.lessons.map((lesson) => {
+      const orderValue =
+        lesson.order !== undefined && lesson.order !== null
+          ? lesson.order
+          : autoOrderCounter++;
+
+      return {
+        ...lesson,
+        topicId: lessonBulkCreateDto.topicId,
+        order: orderValue,
+      };
+    });
 
     return this.prisma.$transaction(async (tx) => {
       const createdLessons = [];

@@ -60,13 +60,29 @@ export class FlashcardService {
       throw new BadRequestException('Flashcards array cannot be empty');
     }
 
-    // Prepare data with topicId
+    // Get the current max order for this topic
+    const maxOrderFlashcard = await this.prisma.flashcard.findFirst({
+      where: { topicId: flashcardBulkCreateDto.topicId },
+      orderBy: { order: 'desc' },
+      select: { order: true },
+    });
+
+    const startOrder = maxOrderFlashcard ? maxOrderFlashcard.order + 1 : 0;
+
+    // Prepare data with topicId and order
+    let autoOrderCounter = startOrder;
     const flashcardsData = flashcardBulkCreateDto.flashcards.map(
-      (flashcard, index) => ({
-        ...flashcard,
-        topicId: flashcardBulkCreateDto.topicId,
-        order: flashcard.order ?? index,
-      }),
+      (flashcard) => {
+        const orderValue =
+          flashcard.order !== undefined && flashcard.order !== null
+            ? flashcard.order
+            : autoOrderCounter++;
+        return {
+          ...flashcard,
+          topicId: flashcardBulkCreateDto.topicId,
+          order: orderValue,
+        };
+      },
     );
 
     return this.prisma.$transaction(async (tx) => {

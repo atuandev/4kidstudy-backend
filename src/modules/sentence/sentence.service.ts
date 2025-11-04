@@ -216,20 +216,25 @@ export class SentenceService {
         });
 
         // Create sentences for this image
+        let sentenceOrderCounter = 0;
         const sentences = await Promise.all(
-          (sentenceImageData.sentences || []).map((sentence, sentenceIndex) =>
-            tx.sentence.create({
+          (sentenceImageData.sentences || []).map((sentence) => {
+            const orderValue =
+              sentence.order !== undefined && sentence.order !== null
+                ? sentence.order
+                : sentenceOrderCounter++;
+            return tx.sentence.create({
               data: {
                 sentenceImageId: sentenceImage.id,
                 text: sentence.text,
                 meaningVi: sentence.meaningVi,
                 hintVi: sentence.hintVi,
                 audioUrl: sentence.audioUrl,
-                order: sentence.order ?? sentenceIndex,
+                order: orderValue,
                 isActive: sentence.isActive ?? true,
               },
-            }),
-          ),
+            });
+          }),
         );
 
         createdSentenceImages.push({
