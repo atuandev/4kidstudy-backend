@@ -72,6 +72,7 @@ model User {
   dob          DateTime?
   gender       Gender    @default(UNSET)
   role         UserRole  @default(LEARNER)
+  isVerified   Boolean?  @default(false)
 
   // Học tập
   xp         Int     @default(0)
