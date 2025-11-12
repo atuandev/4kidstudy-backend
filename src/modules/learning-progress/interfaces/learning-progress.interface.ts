@@ -33,11 +33,25 @@ export interface LearningProgressWithSelectedRelations
     meaningVi: string;
     imageUrl?: string | null;
     audioUrl?: string | null;
+    topicId: number;
+    topic: {
+      id: number;
+      grade: string;
+    };
   } | null;
   sentence?: {
     id: number;
     text: string;
     meaningVi?: string | null;
     audioUrl?: string | null;
+    sentenceImageId: number;
+    sentenceImage: {
+      id: number;
+      topicId: number;
+      topic: {
+        id: number;
+        grade: string;
+      };
+    };
   } | null;
 }

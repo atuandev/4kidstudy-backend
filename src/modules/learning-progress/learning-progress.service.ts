@@ -14,7 +14,6 @@ import {
   PaginatedLearningProgressResponseDto,
   LearningProgressStatsResponseDto,
 } from './dtos';
-import { LearningProgressWithSelectedRelations } from './interfaces/learning-progress.interface';
 
 /**
  * Service for handling learning progress tracking
@@ -285,6 +284,13 @@ export class LearningProgressService {
               meaningVi: true,
               imageUrl: true,
               audioUrl: true,
+              topicId: true,
+              topic: {
+                select: {
+                  id: true,
+                  grade: true,
+                },
+              },
             },
           },
           sentence: {
@@ -293,6 +299,19 @@ export class LearningProgressService {
               text: true,
               meaningVi: true,
               audioUrl: true,
+              sentenceImageId: true,
+              sentenceImage: {
+                select: {
+                  id: true,
+                  topicId: true,
+                  topic: {
+                    select: {
+                      id: true,
+                      grade: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -442,8 +461,9 @@ export class LearningProgressService {
   /**
    * Map learning progress to response DTO
    */
+  /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
   private mapToProgressResponse(
-    progress: LearningProgressWithSelectedRelations,
+    progress: any, // Using any to handle both cases with and without nested relations
   ): LearningProgressResponseDto {
     const flashcard = progress.flashcard
       ? {
@@ -452,6 +472,12 @@ export class LearningProgressService {
           meaningVi: progress.flashcard.meaningVi,
           imageUrl: progress.flashcard.imageUrl ?? undefined,
           audioUrl: progress.flashcard.audioUrl ?? undefined,
+          ...(progress.flashcard.topicId && {
+            topicId: progress.flashcard.topicId,
+          }),
+          ...(progress.flashcard.topic && {
+            topic: progress.flashcard.topic,
+          }),
         }
       : undefined;
 
@@ -461,6 +487,12 @@ export class LearningProgressService {
           text: progress.sentence.text,
           meaningVi: progress.sentence.meaningVi ?? undefined,
           audioUrl: progress.sentence.audioUrl ?? undefined,
+          ...(progress.sentence.sentenceImageId && {
+            sentenceImageId: progress.sentence.sentenceImageId,
+          }),
+          ...(progress.sentence.sentenceImage && {
+            sentenceImage: progress.sentence.sentenceImage,
+          }),
         }
       : undefined;
 
@@ -477,8 +509,9 @@ export class LearningProgressService {
       updatedAt: progress.updatedAt,
       ...(flashcard && { flashcard }),
       ...(sentence && { sentence }),
-    };
+    } as LearningProgressResponseDto;
   }
+  /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 
   /**
    * Get learning progress by topic for a user
