@@ -4,7 +4,12 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, SentenceImage, Sentence } from '@prisma/client';
+import {
+  Prisma,
+  SentenceImage,
+  Sentence,
+  LearningProgress,
+} from '@prisma/client';
 import {
   CreateSentenceImageDto,
   CreateSentenceDto,
@@ -15,7 +20,9 @@ import {
 } from './dtos/index';
 
 type SentenceImageWithSentences = SentenceImage & {
-  sentences: Sentence[];
+  sentences: (Sentence & {
+    progress?: LearningProgress[];
+  })[];
 };
 
 /**
@@ -48,6 +55,9 @@ export class SentenceService {
         sentences: {
           where: isActive !== undefined ? { isActive } : undefined,
           orderBy: { order: 'asc' },
+          include: {
+            progress: true,
+          },
         },
         topic: true,
       },
@@ -71,6 +81,9 @@ export class SentenceService {
         sentences: {
           where: isActive !== undefined ? { isActive } : undefined,
           orderBy: { order: 'asc' },
+          include: {
+            progress: true,
+          },
         },
         topic: true,
       },
@@ -275,6 +288,9 @@ export class SentenceService {
       include: {
         sentences: {
           orderBy: { order: 'asc' },
+          include: {
+            progress: true,
+          },
         },
         topic: true,
       },
