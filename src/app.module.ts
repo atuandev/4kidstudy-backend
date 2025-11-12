@@ -12,6 +12,7 @@ import { ExerciseModule } from './modules/exercise/exercise.module';
 import { SentenceModule } from './modules/sentence/sentence.module';
 import { AttemptModule } from './modules/attempt/attempt.module';
 import { LearningProgressModule } from './modules/learning-progress/learning-progress.module';
+import { PronunciationModule } from './modules/pronunciation/pronunciation.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { LearningProgressModule } from './modules/learning-progress/learning-pro
     SentenceModule,
     AttemptModule,
     LearningProgressModule,
+    PronunciationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
