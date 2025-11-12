@@ -22,6 +22,11 @@ export class LearningProgressResponseDto {
     meaningVi: string;
     imageUrl?: string;
     audioUrl?: string;
+    topicId: number;
+    topic: {
+      id: number;
+      grade: string;
+    };
   };
 
   sentence?: {
@@ -29,6 +34,15 @@ export class LearningProgressResponseDto {
     text: string;
     meaningVi?: string;
     audioUrl?: string;
+    sentenceImageId: number;
+    sentenceImage: {
+      id: number;
+      topicId: number;
+      topic: {
+        id: number;
+        grade: string;
+      };
+    };
   };
 }
 
