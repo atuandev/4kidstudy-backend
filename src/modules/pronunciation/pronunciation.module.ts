@@ -3,7 +3,6 @@ import { PronunciationController } from './pronunciation.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PronunciationService } from './pronunciation.service';
 
-
 @Module({
   imports: [PrismaModule],
   controllers: [PronunciationController],
@@ -11,4 +10,3 @@ import { PronunciationService } from './pronunciation.service';
   exports: [PronunciationService],
 })
 export class PronunciationModule {}
-

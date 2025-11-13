@@ -19,5 +19,3 @@ export class PracticeStatisticsResponseDto {
   totalIncorrectCount: number;
   byType: PracticeStatisticsByTypeDto[];
 }
-
-
