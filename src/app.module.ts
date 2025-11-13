@@ -14,6 +14,7 @@ import { AttemptModule } from './modules/attempt/attempt.module';
 import { LearningProgressModule } from './modules/learning-progress/learning-progress.module';
 import { PronunciationModule } from './modules/pronunciation/pronunciation.module';
 import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
     LearningProgressModule,
     PronunciationModule,
     LeaderboardModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
