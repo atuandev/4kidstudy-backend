@@ -72,6 +72,7 @@ model User {
   dob          DateTime?
   gender       Gender    @default(UNSET)
   role         UserRole  @default(LEARNER)
+  grade       GradeLevel @default(GRADE_1)
   isVerified   Boolean?  @default(false)
 
   // Học tập

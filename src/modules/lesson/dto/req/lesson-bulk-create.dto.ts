@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, Min, IsArray, ArrayMinSize, ValidateNested } from 'class-validator';
+import {
+  IsInt,
+  Min,
+  IsArray,
+  ArrayMinSize,
+  ValidateNested,
+} from 'class-validator';
 import { LessonItemDto } from './lesson-item.dto';
 import { Type } from 'class-transformer';
 

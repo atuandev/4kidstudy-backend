@@ -13,6 +13,7 @@ import { SentenceModule } from './modules/sentence/sentence.module';
 import { AttemptModule } from './modules/attempt/attempt.module';
 import { LearningProgressModule } from './modules/learning-progress/learning-progress.module';
 import { PronunciationModule } from './modules/pronunciation/pronunciation.module';
+import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PronunciationModule } from './modules/pronunciation/pronunciation.modul
     AttemptModule,
     LearningProgressModule,
     PronunciationModule,
+    LeaderboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
