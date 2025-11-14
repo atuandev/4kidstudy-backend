@@ -16,14 +16,15 @@ export class PronunciationService {
   }
 
   /**
-   * Convert MP3 buffer to WAV buffer (16kHz, 16-bit, mono)
+   * Convert audio buffer (MP3, WebM, OGG, etc.) to WAV buffer (16kHz, 16-bit, mono)
    * Required format for Azure Speech SDK
+   * FFmpeg will automatically detect the input format
    */
-  private async convertMp3ToWav(mp3Buffer: Buffer): Promise<Buffer> {
+  private async convertAudioToWav(audioBuffer: Buffer): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
       const readableStream = new Readable();
-      readableStream.push(mp3Buffer);
+      readableStream.push(audioBuffer);
       readableStream.push(null);
 
       ffmpeg(readableStream)
@@ -36,7 +37,7 @@ export class PronunciationService {
           reject(new Error(`Audio conversion failed: ${err.message}`));
         })
         .on('end', () => {
-          this.logger.log('MP3 to WAV conversion completed');
+          this.logger.log('Audio to WAV conversion completed');
           resolve(Buffer.concat(chunks));
         })
         .pipe()
@@ -51,9 +52,9 @@ export class PronunciationService {
     referenceText: string,
   ): Promise<PronunciationAssessmentResponseDto> {
     try {
-      // 1. Convert MP3 to WAV (16kHz, 16-bit, mono) if needed
-      this.logger.log('Converting MP3 audio to WAV format...');
-      const wavBuffer = await this.convertMp3ToWav(audioBuffer);
+      // 1. Convert audio to WAV (16kHz, 16-bit, mono) - supports MP3, WebM, OGG, etc.
+      this.logger.log('Converting audio to WAV format...');
+      const wavBuffer = await this.convertAudioToWav(audioBuffer);
 
       // 2. Cấu hình kết nối Azure (Lấy từ .env)
       const speechKey = process.env.AZURE_SPEECH_KEY;
