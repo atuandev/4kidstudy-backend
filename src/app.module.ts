@@ -15,6 +15,7 @@ import { LearningProgressModule } from './modules/learning-progress/learning-pro
 import { PronunciationModule } from './modules/pronunciation/pronunciation.module';
 import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { EmailModule } from './modules/email/email.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ChatModule } from './modules/chat/chat.module';
     PronunciationModule,
     LeaderboardModule,
     ChatModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],
