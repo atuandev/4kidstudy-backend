@@ -1,8 +1,11 @@
-import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 
-export class ChatDto {
+export class ChatRequestDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(1000)
-  text: string;
+  message: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isTranslation?: boolean; // true nếu yêu cầu dịch từ
 }
