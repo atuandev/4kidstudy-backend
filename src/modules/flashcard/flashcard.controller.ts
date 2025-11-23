@@ -12,8 +12,9 @@ import {
   HttpCode,
   UseInterceptors,
   UploadedFile,
+  UploadedFiles,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes } from '@nestjs/swagger';
 import {
   ApiTags,
@@ -88,11 +89,16 @@ export class FlashcardController {
   }
 
   @Post('import/:topicId')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'excelFile', maxCount: 1 },
+      { name: 'assets', maxCount: 200 },
+    ]),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Import flashcards from Excel',
-    description: 'Imports flashcards from an Excel file for a specific topic',
+    summary: 'Import flashcards from Excel with assets',
+    description: 'Imports flashcards from Excel file along with image and audio files',
   })
   @ApiParam({
     name: 'topicId',
@@ -115,12 +121,24 @@ export class FlashcardController {
   @HttpCode(HttpStatus.CREATED)
   async importFlashcards(
     @Param('topicId', ParseIntPipe) topicId: number,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFiles()
+    files: {
+      excelFile?: Express.Multer.File[];
+      assets?: Express.Multer.File[];
+    },
   ) {
-    if (!file) {
-      throw new Error('No file uploaded');
+    if (!files?.excelFile || files.excelFile.length === 0) {
+      throw new Error('No Excel file uploaded');
     }
-    return this.flashcardService.importFromExcel(topicId, file.buffer);
+
+    const excelFile = files.excelFile[0];
+    const assetFiles = files.assets || [];
+
+    return this.flashcardService.importFromExcel(
+      topicId,
+      excelFile.buffer,
+      assetFiles,
+    );
   }
 
   @Get()

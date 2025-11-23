@@ -8,13 +8,58 @@ import { Prisma } from '@prisma/client';
 import {
   CreateFlashcardDto,
   UpdateFlashcardDto,
-  FlashcardBulkCreateDto,
+  FlashcardBulkCreateDto, 
 } from './dtos/index';
 import * as XLSX from 'xlsx';
+import { v2 as cloudinary } from 'cloudinary';
+import { Readable } from 'stream';
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 @Injectable()
 export class FlashcardService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Upload file to Cloudinary
+   * Returns the secure URL of the uploaded file
+   */
+  private async uploadToCloudinary(file: Express.Multer.File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let resourceType: 'image' | 'video' | 'raw' | 'auto' = 'auto';
+      if (file.mimetype.startsWith('image/')) {
+        resourceType = 'image';
+      } else if (file.mimetype.startsWith('audio/') || file.mimetype.startsWith('video/')) {
+        resourceType = 'video';
+      }
+
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: resourceType,
+          folder: 'flashcards',
+          use_filename: true,
+          unique_filename: true,
+        },
+        (error, result) => {
+          if (error) {
+            reject(new BadRequestException(`Cloudinary upload failed: ${error.message}`));
+          } else if (result) {
+            resolve(result.secure_url);
+          } else {
+            reject(new BadRequestException('Cloudinary upload failed: No result'));
+          }
+        },
+      );
+
+      const bufferStream = Readable.from(file.buffer);
+      bufferStream.pipe(uploadStream);
+    });
+  }
 
   async create(createFlashcardDto: CreateFlashcardDto) {
     // Check if topic exists
@@ -323,7 +368,7 @@ export class FlashcardService {
     });
   }
 
-  async importFromExcel(topicId: number, buffer: Buffer) {
+  async importFromExcel(topicId: number, buffer: Buffer, assetFiles: Express.Multer.File[] = []) {
     // Check if topic exists
     const topic = await this.prisma.topic.findUnique({
       where: { id: topicId },
@@ -334,7 +379,22 @@ export class FlashcardService {
     }
 
     try {
-      // Parse Excel file
+      // Step 1: Upload all assets to Cloudinary and create filename -> URL map
+      const assetMap = new Map<string, string>();
+      
+      console.log(`📦 Uploading ${assetFiles.length} assets to Cloudinary...`);
+      
+      for (const file of assetFiles) {
+        try {
+          const uploadedUrl = await this.uploadToCloudinary(file);
+          assetMap.set(file.originalname, uploadedUrl);
+          console.log(`✅ Uploaded: ${file.originalname} -> ${uploadedUrl}`);
+        } catch (error) {
+          console.error(`❌ Failed to upload ${file.originalname}:`, error.message);
+        }
+      }
+
+      // Step 2: Parse Excel file
       const workbook = XLSX.read(buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       if (!sheetName) {
@@ -357,13 +417,39 @@ export class FlashcardService {
 
       const startOrder = maxOrderFlashcard ? maxOrderFlashcard.order + 1 : 0;
 
+      // Helper function to extract filename from path
+      const extractFileName = (path: string): string => {
+        if (!path || typeof path !== 'string') return '';
+        const normalized = path.trim();
+        if (normalized === '\\n' || normalized === '\n') return '';
+        return normalized.split('\\').pop()?.split('/').pop() || '';
+      };
+
       // Helper function to normalize cell value
       const normalizeValue = (value: any): string => {
         if (!value) return '';
         const str = value.toString().trim();
-        // '\n' means null/empty
         if (str === '\\n' || str === '\n') return '';
         return str;
+      };
+
+      // Helper function to map file path to uploaded URL
+      const mapAssetUrl = (cellValue: any): string => {
+        if (!cellValue) return '';
+        const path = normalizeValue(cellValue);
+        if (!path) return '';
+        
+        const fileName = extractFileName(path);
+        if (!fileName) return '';
+        
+        const uploadedUrl = assetMap.get(fileName);
+        if (uploadedUrl) {
+          console.log(`🔗 Mapped: ${path} -> ${uploadedUrl}`);
+          return uploadedUrl;
+        }
+        
+        console.warn(`⚠️  No uploaded file found for: ${fileName}`);
+        return '';
       };
 
       // Map Excel rows to flashcard DTOs
@@ -385,8 +471,8 @@ export class FlashcardService {
           meaningVi,
           exampleEn: normalizeValue(row.ExEn),
           exampleVi: normalizeValue(row.ExVi),
-          imageUrl: normalizeValue(row.img),
-          audioUrl: normalizeValue(row.audio),
+          imageUrl: mapAssetUrl(row.img),
+          audioUrl: mapAssetUrl(row.audio),
           order: startOrder + index,
           isActive: true,
         };
