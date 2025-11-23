@@ -89,6 +89,21 @@ export class LearningProgressController {
   }
 
   /**
+   * Get reviewed flashcard IDs for a topic
+   * GET /learning-progress/topic/:topicId/reviewed-flashcards
+   */
+  @Get('topic/:topicId/reviewed-flashcards')
+  async getReviewedFlashcards(
+    @Request() req: any,
+    @Param('topicId', ParseIntPipe) topicId: number,
+  ): Promise<{ flashcardIds: number[] }> {
+    const userId = req.user.id;
+    const flashcardIds =
+      await this.learningProgressService.getReviewedFlashcardIds(userId, topicId);
+    return { flashcardIds };
+  }
+
+  /**
    * Get last reviewed topic ID
    * GET /learning-progress/last-topic
    */
