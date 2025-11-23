@@ -10,7 +10,11 @@ import {
   ParseIntPipe,
   HttpStatus,
   HttpCode,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiConsumes } from '@nestjs/swagger';
 import {
   ApiTags,
   ApiOperation,
@@ -81,6 +85,42 @@ export class FlashcardController {
     @Body() flashcardBulkCreateDto: FlashcardBulkCreateDto,
   ) {
     return this.flashcardService.createBulk(flashcardBulkCreateDto);
+  }
+
+  @Post('import/:topicId')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Import flashcards from Excel',
+    description: 'Imports flashcards from an Excel file for a specific topic',
+  })
+  @ApiParam({
+    name: 'topicId',
+    description: 'Topic ID',
+    type: 'number',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Flashcards imported successfully',
+    type: [FlashcardWithTopicDto],
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - invalid file format or data',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Topic not found',
+  })
+  @HttpCode(HttpStatus.CREATED)
+  async importFlashcards(
+    @Param('topicId', ParseIntPipe) topicId: number,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new Error('No file uploaded');
+    }
+    return this.flashcardService.importFromExcel(topicId, file.buffer);
   }
 
   @Get()

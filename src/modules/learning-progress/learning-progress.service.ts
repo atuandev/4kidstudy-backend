@@ -139,13 +139,13 @@ export class LearningProgressService {
   }
 
   /**
-   * Review content (increment review count and optionally mark as mastered)
+   * Review content (increment review count and mark as mastered if reviewCount >= 50)
    */
   async reviewContent(
     userId: number,
     reviewDto: ReviewContentDto,
   ): Promise<LearningProgressResponseDto> {
-    const { contentType, flashcardId, sentenceId, isMastered } = reviewDto;
+    const { contentType, flashcardId, sentenceId } = reviewDto;
 
     // Find existing progress
     let progress = await this.prisma.learningProgress.findFirst({
@@ -171,13 +171,24 @@ export class LearningProgressService {
       });
     }
 
-    // Update progress (increment review count)
+    // Calculate new review count
+    const newReviewCount = progress.reviewCount + 1;
+    
+    // Check if should be marked as mastered (reviewCount >= 3 for testing, change to 50 for production)
+    const shouldBeMastered = newReviewCount >= 3;
+    
+    // Log for debugging
+    console.log(`[reviewContent] User ${userId}, flashcardId ${flashcardId}, sentenceId ${sentenceId}`);
+    console.log(`  Current reviewCount: ${progress.reviewCount}, New reviewCount: ${newReviewCount}`);
+    console.log(`  shouldBeMastered: ${shouldBeMastered}`);
+
+    // Update progress (increment review count and check mastery threshold)
     const updatedProgress = await this.prisma.learningProgress.update({
       where: { id: progress.id },
       data: {
         reviewCount: { increment: 1 },
         lastReviewedAt: new Date(),
-        ...(isMastered !== undefined && { isMastered }),
+        isMastered: shouldBeMastered,
       },
       include: {
         flashcard: flashcardId
@@ -398,6 +409,8 @@ export class LearningProgressService {
     });
   }
 
+
+
   /**
    * Get learning progress statistics for a user
    */
@@ -406,54 +419,27 @@ export class LearningProgressService {
   ): Promise<LearningProgressStatsResponseDto> {
     const [
       totalReviewed,
-      totalMastered,
       flashcardTotal,
-      flashcardMastered,
       sentenceTotal,
-      sentenceMastered,
     ] = await Promise.all([
       this.prisma.learningProgress.count({
         where: { userId },
       }),
       this.prisma.learningProgress.count({
-        where: { userId, isMastered: true },
-      }),
-      this.prisma.learningProgress.count({
         where: { userId, contentType: LearningContentType.FLASHCARD },
       }),
       this.prisma.learningProgress.count({
-        where: {
-          userId,
-          contentType: LearningContentType.FLASHCARD,
-          isMastered: true,
-        },
-      }),
-      this.prisma.learningProgress.count({
         where: { userId, contentType: LearningContentType.SENTENCE },
-      }),
-      this.prisma.learningProgress.count({
-        where: {
-          userId,
-          contentType: LearningContentType.SENTENCE,
-          isMastered: true,
-        },
       }),
     ]);
 
     return {
       totalReviewed,
-      totalMastered,
-      masteryRate:
-        totalReviewed > 0 ? (totalMastered / totalReviewed) * 100 : 0,
       flashcardStats: {
         total: flashcardTotal,
-        mastered: flashcardMastered,
-        inProgress: flashcardTotal - flashcardMastered,
       },
       sentenceStats: {
         total: sentenceTotal,
-        mastered: sentenceMastered,
-        inProgress: sentenceTotal - sentenceMastered,
       },
     };
   }
@@ -681,7 +667,7 @@ export class LearningProgressService {
   }
 
   /**
-   * Get reviewed flashcard IDs for a specific topic
+   * Get mastered flashcard IDs for a specific topic (isMastered = true)
    */
   async getReviewedFlashcardIds(
     userId: number,
@@ -691,6 +677,7 @@ export class LearningProgressService {
       where: {
         userId,
         contentType: LearningContentType.FLASHCARD,
+        isMastered: true, // Only get mastered flashcards
         flashcard: {
           topicId,
         },

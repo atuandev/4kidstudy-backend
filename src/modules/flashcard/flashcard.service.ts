@@ -10,6 +10,7 @@ import {
   UpdateFlashcardDto,
   FlashcardBulkCreateDto,
 } from './dtos/index';
+import * as XLSX from 'xlsx';
 
 @Injectable()
 export class FlashcardService {
@@ -320,5 +321,107 @@ export class FlashcardService {
       }
       return updatedFlashcards;
     });
+  }
+
+  async importFromExcel(topicId: number, buffer: Buffer) {
+    // Check if topic exists
+    const topic = await this.prisma.topic.findUnique({
+      where: { id: topicId },
+    });
+
+    if (!topic) {
+      throw new NotFoundException(`Topic with ID ${topicId} not found`);
+    }
+
+    try {
+      // Parse Excel file
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        throw new BadRequestException('Excel file is empty');
+      }
+
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+      if (!data || data.length === 0) {
+        throw new BadRequestException('No data found in Excel file');
+      }
+
+      // Get the current max order for this topic
+      const maxOrderFlashcard = await this.prisma.flashcard.findFirst({
+        where: { topicId },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      });
+
+      const startOrder = maxOrderFlashcard ? maxOrderFlashcard.order + 1 : 0;
+
+      // Helper function to normalize cell value
+      const normalizeValue = (value: any): string => {
+        if (!value) return '';
+        const str = value.toString().trim();
+        // '\n' means null/empty
+        if (str === '\\n' || str === '\n') return '';
+        return str;
+      };
+
+      // Map Excel rows to flashcard DTOs
+      const flashcards: CreateFlashcardDto[] = data.map((row, index) => {
+        const term = normalizeValue(row.term);
+        const meaningVi = normalizeValue(row.meaningVi);
+
+        // Validate required fields
+        if (!term || !meaningVi) {
+          throw new BadRequestException(
+            `Row ${index + 2}: term and meaningVi are required`,
+          );
+        }
+
+        return {
+          topicId,
+          term,
+          phonetic: normalizeValue(row.phonetic),
+          meaningVi,
+          exampleEn: normalizeValue(row.ExEn),
+          exampleVi: normalizeValue(row.ExVi),
+          imageUrl: normalizeValue(row.img),
+          audioUrl: normalizeValue(row.audio),
+          order: startOrder + index,
+          isActive: true,
+        };
+      });
+
+      // Create flashcards in transaction
+      return this.prisma.$transaction(async (tx) => {
+        const createdFlashcards = [];
+        for (const flashcard of flashcards) {
+          const created = await tx.flashcard.create({
+            data: flashcard,
+            include: {
+              topic: {
+                select: {
+                  id: true,
+                  title: true,
+                  grade: true,
+                },
+              },
+            },
+          });
+          createdFlashcards.push(created);
+        }
+        return createdFlashcards;
+      });
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException(
+        `Failed to parse Excel file: ${error.message}`,
+      );
+    }
   }
 }

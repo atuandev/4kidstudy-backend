@@ -185,4 +185,6 @@ export class LearningProgressController {
     await this.learningProgressService.deleteProgress(id, userId);
     return { message: 'Learning progress deleted successfully' };
   }
+
+
 }
