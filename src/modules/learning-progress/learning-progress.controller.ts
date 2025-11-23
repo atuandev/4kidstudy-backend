@@ -104,6 +104,21 @@ export class LearningProgressController {
   }
 
   /**
+   * Get reviewed sentence IDs for a topic
+   * GET /learning-progress/topic/:topicId/reviewed-sentences
+   */
+  @Get('topic/:topicId/reviewed-sentences')
+  async getReviewedSentences(
+    @Request() req: any,
+    @Param('topicId', ParseIntPipe) topicId: number,
+  ): Promise<{ sentenceIds: number[] }> {
+    const userId = req.user.id;
+    const sentenceIds =
+      await this.learningProgressService.getReviewedSentenceIds(userId, topicId);
+    return { sentenceIds };
+  }
+
+  /**
    * Get last reviewed topic ID
    * GET /learning-progress/last-topic
    */

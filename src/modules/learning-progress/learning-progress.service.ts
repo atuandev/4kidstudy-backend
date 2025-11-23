@@ -706,6 +706,33 @@ export class LearningProgressService {
   }
 
   /**
+   * Get reviewed sentence IDs for a specific topic
+   */
+  async getReviewedSentenceIds(
+    userId: number,
+    topicId: number,
+  ): Promise<number[]> {
+    const progressList = await this.prisma.learningProgress.findMany({
+      where: {
+        userId,
+        contentType: LearningContentType.SENTENCE,
+        sentence: {
+          sentenceImage: {
+            topicId,
+          },
+        },
+      },
+      select: {
+        sentenceId: true,
+      },
+    });
+
+    return progressList
+      .map((p) => p.sentenceId)
+      .filter((id): id is number => id !== null);
+  }
+
+  /**
    * Get the last reviewed topic ID for a user
    */
   async getLastReviewedTopic(userId: number): Promise<number | null> {
