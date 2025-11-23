@@ -99,7 +99,10 @@ export class LearningProgressController {
   ): Promise<{ flashcardIds: number[] }> {
     const userId = req.user.id;
     const flashcardIds =
-      await this.learningProgressService.getReviewedFlashcardIds(userId, topicId);
+      await this.learningProgressService.getReviewedFlashcardIds(
+        userId,
+        topicId,
+      );
     return { flashcardIds };
   }
 
@@ -114,7 +117,10 @@ export class LearningProgressController {
   ): Promise<{ sentenceIds: number[] }> {
     const userId = req.user.id;
     const sentenceIds =
-      await this.learningProgressService.getReviewedSentenceIds(userId, topicId);
+      await this.learningProgressService.getReviewedSentenceIds(
+        userId,
+        topicId,
+      );
     return { sentenceIds };
   }
 
@@ -185,6 +191,4 @@ export class LearningProgressController {
     await this.learningProgressService.deleteProgress(id, userId);
     return { message: 'Learning progress deleted successfully' };
   }
-
-
 }

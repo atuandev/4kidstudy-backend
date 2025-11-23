@@ -129,16 +129,20 @@ Example format:
   private extractWord(message: string): string {
     const msg = message.trim();
     // Nếu có từ khóa, lấy từ sau từ khóa
-    const match = msg.match(/(?:nghĩa của|nghĩa|dịch|translate|mean)\s+["']?([\w\u00C0-\u1EF9\s]+)["']?/i);
+    const match = msg.match(
+      /(?:nghĩa của|nghĩa|dịch|translate|mean)\s+["']?([\w\u00C0-\u1EF9\s]+)["']?/i,
+    );
     if (match) return match[1].trim();
-    
+
     // Nếu là câu hỏi "X là gì", lấy X
-    const isWhatMatch = msg.match(/^([\w\u00C0-\u1EF9\s]+)\s+(là gì|nghĩa là gì)/i);
+    const isWhatMatch = msg.match(
+      /^([\w\u00C0-\u1EF9\s]+)\s+(là gì|nghĩa là gì)/i,
+    );
     if (isWhatMatch) return isWhatMatch[1].trim();
-    
+
     // Nếu chỉ là 1 từ đơn, lấy luôn
     if (msg.split(/\s+/).length <= 2) return msg;
-    
+
     return msg;
   }
 
@@ -156,9 +160,7 @@ Input: "xe đạp" → Output: "bicycle"
 Input: "hello" → Output: "xin chào"
 Input: "apple" → Output: "quả táo"`;
 
-    const aiResponse = await this.callAI([
-      { role: 'user', content: prompt },
-    ]);
+    const aiResponse = await this.callAI([{ role: 'user', content: prompt }]);
 
     // Làm sạch response - chỉ giữ lại nghĩa thuần túy
     let cleanResponse = aiResponse
@@ -199,7 +201,10 @@ Input: "apple" → Output: "quả táo"`;
     try {
       // Tạo prompt từ lịch sử tin nhắn
       const conversationHistory = messages
-        .map((msg) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+        .map(
+          (msg) =>
+            `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`,
+        )
         .join('\n');
 
       const result = await this.model.generateContent(conversationHistory);

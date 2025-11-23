@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 import {
   CreateFlashcardDto,
   UpdateFlashcardDto,
-  FlashcardBulkCreateDto, 
+  FlashcardBulkCreateDto,
 } from './dtos/index';
 import * as XLSX from 'xlsx';
 import { v2 as cloudinary } from 'cloudinary';
@@ -34,7 +34,10 @@ export class FlashcardService {
       let resourceType: 'image' | 'video' | 'raw' | 'auto' = 'auto';
       if (file.mimetype.startsWith('image/')) {
         resourceType = 'image';
-      } else if (file.mimetype.startsWith('audio/') || file.mimetype.startsWith('video/')) {
+      } else if (
+        file.mimetype.startsWith('audio/') ||
+        file.mimetype.startsWith('video/')
+      ) {
         resourceType = 'video';
       }
 
@@ -47,11 +50,17 @@ export class FlashcardService {
         },
         (error, result) => {
           if (error) {
-            reject(new BadRequestException(`Cloudinary upload failed: ${error.message}`));
+            reject(
+              new BadRequestException(
+                `Cloudinary upload failed: ${error.message}`,
+              ),
+            );
           } else if (result) {
             resolve(result.secure_url);
           } else {
-            reject(new BadRequestException('Cloudinary upload failed: No result'));
+            reject(
+              new BadRequestException('Cloudinary upload failed: No result'),
+            );
           }
         },
       );
@@ -368,7 +377,11 @@ export class FlashcardService {
     });
   }
 
-  async importFromExcel(topicId: number, buffer: Buffer, assetFiles: Express.Multer.File[] = []) {
+  async importFromExcel(
+    topicId: number,
+    buffer: Buffer,
+    assetFiles: Express.Multer.File[] = [],
+  ) {
     // Check if topic exists
     const topic = await this.prisma.topic.findUnique({
       where: { id: topicId },
@@ -381,16 +394,13 @@ export class FlashcardService {
     try {
       // Step 1: Upload all assets to Cloudinary and create filename -> URL map
       const assetMap = new Map<string, string>();
-      
-      console.log(`📦 Uploading ${assetFiles.length} assets to Cloudinary...`);
-      
+
       for (const file of assetFiles) {
         try {
           const uploadedUrl = await this.uploadToCloudinary(file);
           assetMap.set(file.originalname, uploadedUrl);
-          console.log(`✅ Uploaded: ${file.originalname} -> ${uploadedUrl}`);
-        } catch (error) {
-          console.error(`❌ Failed to upload ${file.originalname}:`, error.message);
+        } catch {
+          // ignore upload failures for individual assets
         }
       }
 
@@ -402,7 +412,21 @@ export class FlashcardService {
       }
 
       const worksheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+      interface ExcelRow {
+        term?: string | number;
+        meaningVi?: string | number;
+        phonetic?: string | number;
+        ExEn?: string | number;
+        ExVi?: string | number;
+        img?: string | number;
+        audio?: string | number;
+        [key: string]: unknown;
+      }
+
+      const data = XLSX.utils.sheet_to_json<ExcelRow>(worksheet, {
+        defval: '',
+      });
 
       if (!data || data.length === 0) {
         throw new BadRequestException('No data found in Excel file');
@@ -426,11 +450,18 @@ export class FlashcardService {
       };
 
       // Helper function to normalize cell value
-      const normalizeValue = (value: any): string => {
-        if (!value) return '';
-        const str = value.toString().trim();
-        if (str === '\\n' || str === '\n') return '';
-        return str;
+      const normalizeValue = (value: unknown): string => {
+        if (value === undefined || value === null) return '';
+        if (typeof value === 'string') {
+          const s = value.trim();
+          if (s === '\n' || s === '\n') return '';
+          return s;
+        }
+        if (typeof value === 'object') return '';
+        if (typeof value === 'number' || typeof value === 'boolean') {
+          return String(value).trim();
+        }
+        return '';
       };
 
       // Helper function to map file path to uploaded URL
@@ -438,17 +469,14 @@ export class FlashcardService {
         if (!cellValue) return '';
         const path = normalizeValue(cellValue);
         if (!path) return '';
-        
+
         const fileName = extractFileName(path);
         if (!fileName) return '';
-        
+
         const uploadedUrl = assetMap.get(fileName);
         if (uploadedUrl) {
-          console.log(`🔗 Mapped: ${path} -> ${uploadedUrl}`);
           return uploadedUrl;
         }
-        
-        console.warn(`⚠️  No uploaded file found for: ${fileName}`);
         return '';
       };
 
@@ -498,16 +526,16 @@ export class FlashcardService {
         }
         return createdFlashcards;
       });
-    } catch (error) {
+    } catch (error: unknown) {
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException
       ) {
         throw error;
       }
-      throw new BadRequestException(
-        `Failed to parse Excel file: ${error.message}`,
-      );
+
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(`Failed to parse Excel file: ${msg}`);
     }
   }
 }

@@ -14,7 +14,10 @@ import {
   UploadedFile,
   UploadedFiles,
 } from '@nestjs/common';
-import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
+import {
+  FileInterceptor,
+  FileFieldsInterceptor,
+} from '@nestjs/platform-express';
 import { ApiConsumes } from '@nestjs/swagger';
 import {
   ApiTags,
@@ -98,7 +101,8 @@ export class FlashcardController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Import flashcards from Excel with assets',
-    description: 'Imports flashcards from Excel file along with image and audio files',
+    description:
+      'Imports flashcards from Excel file along with image and audio files',
   })
   @ApiParam({
     name: 'topicId',
