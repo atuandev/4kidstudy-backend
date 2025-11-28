@@ -305,6 +305,11 @@ SYSTEM QUERY RULES:
       /(xp|điểm) của (tôi|mình)/i,
       /streak (của )?(tôi|mình)/i,
       /đã học unit nào/i,
+      /unit nào (đã|rồi) học/i,
+      /unit nào (chưa|chưa) học/i,
+      /unit nào (tôi|mình) (đã|chưa) học/i,
+      /which units? (have I )?(learned|completed)/i,
+      /which units? (haven't I|not) (learned|completed)/i,
       /unit nào (dễ|khó) nhất/i,
       /unit nào (chưa )?hoàn thành/i,
 
@@ -649,11 +654,110 @@ SYSTEM QUERY RULES:
 
     // Topic/Unit query
     if (msg.includes('unit') || msg.includes('topic') || msg.includes('chủ đề')) {
-      const topics = await this.getTopicsByGrade(stats.grade);
-      contextData += `\nAvailable units for grade ${stats.grade}:\n`;
-      topics.forEach((t) => {
-        contextData += `- ${t.title}: ${t.description || 'No description'} (${t.lessonCount} lessons)\n`;
-      });
+      // Check if asking about learned/unlearned units
+      const isLearnedQuery = msg.includes('đã học') || msg.includes('learned') || msg.includes('completed');
+      const isUnlearnedQuery = msg.includes('chưa học') || msg.includes('haven\'t') || msg.includes('not learned') || msg.includes('incomplete');
+
+      if (isLearnedQuery || isUnlearnedQuery) {
+        // Get all topics in user's grade
+        const allTopics = await this.prisma.topic.findMany({
+          where: { grade: stats.grade, isActive: true },
+          select: { id: true, title: true, description: true },
+          orderBy: { order: 'asc' },
+        });
+
+        // For each topic, check if ALL flashcards AND ALL sentences are mastered
+        const learnedTopicIds: number[] = [];
+
+        for (const topic of allTopics) {
+          // Get all flashcards in this topic
+          const flashcards = await this.prisma.flashcard.findMany({
+            where: { topicId: topic.id, isActive: true },
+            select: { id: true },
+          });
+
+          // Get all sentences in this topic
+          const sentenceImages = await this.prisma.sentenceImage.findMany({
+            where: { topicId: topic.id },
+            include: {
+              sentences: {
+                where: { isActive: true },
+                select: { id: true },
+              },
+            },
+          });
+          const sentences = sentenceImages.flatMap((si) => si.sentences);
+
+          // Get user's mastered items
+          const masteredFlashcards = await this.prisma.learningProgress.findMany({
+            where: {
+              userId,
+              contentType: 'FLASHCARD',
+              isMastered: true,
+              flashcardId: { in: flashcards.map((f) => f.id) },
+            },
+            select: { flashcardId: true },
+          });
+
+          const masteredSentences = await this.prisma.learningProgress.findMany({
+            where: {
+              userId,
+              contentType: 'SENTENCE',
+              isMastered: true,
+              sentenceId: { in: sentences.map((s) => s.id) },
+            },
+            select: { sentenceId: true },
+          });
+
+          // Topic is learned only if ALL flashcards AND ALL sentences are mastered
+          const allFlashcardsMastered =
+            flashcards.length > 0 &&
+            flashcards.every((f) =>
+              masteredFlashcards.some((mf) => mf.flashcardId === f.id)
+            );
+
+          const allSentencesMastered =
+            sentences.length > 0 &&
+            sentences.every((s) =>
+              masteredSentences.some((ms) => ms.sentenceId === s.id)
+            );
+
+          if (allFlashcardsMastered && allSentencesMastered) {
+            learnedTopicIds.push(topic.id);
+          }
+        }
+
+        if (isLearnedQuery) {
+          const learnedTopics = allTopics.filter((t) => learnedTopicIds.includes(t.id));
+          if (learnedTopics.length > 0) {
+            contextData += `\nUnits you have learned (${learnedTopics.length}):\n`;
+            learnedTopics.forEach((t, i) => {
+              contextData += `${i + 1}. ${t.title}\n`;
+            });
+          } else {
+            contextData += `\nYou haven't completed any units yet.\n`;
+          }
+        }
+
+        if (isUnlearnedQuery) {
+          const unlearnedTopics = allTopics.filter((t) => !learnedTopicIds.includes(t.id));
+          if (unlearnedTopics.length > 0) {
+            contextData += `\nUnits you haven't learned yet (${unlearnedTopics.length}):\n`;
+            unlearnedTopics.forEach((t, i) => {
+              contextData += `${i + 1}. ${t.title}\n`;
+            });
+          } else {
+            contextData += `\nYou have completed all units!\n`;
+          }
+        }
+      } else {
+        // General topic/unit list query
+        const topics = await this.getTopicsByGrade(stats.grade);
+        contextData += `\nAvailable units for grade ${stats.grade}:\n`;
+        topics.forEach((t) => {
+          contextData += `- ${t.title}: ${t.description || 'No description'} (${t.lessonCount} lessons)\n`;
+        });
+      }
     }
 
     return contextData;
