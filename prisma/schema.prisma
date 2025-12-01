@@ -88,6 +88,9 @@ model User {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
+  // Thêm trường chatHistory
+  chatHistory ChatHistory[]
+
   @@index([role])
 }
 
@@ -367,4 +370,15 @@ model LearningProgress {
   @@index([sentenceId])
   @@index([userId, contentType, isMastered])
   @@index([contentType])
+}
+
+model ChatHistory {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   // "user" hoặc "ai"
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

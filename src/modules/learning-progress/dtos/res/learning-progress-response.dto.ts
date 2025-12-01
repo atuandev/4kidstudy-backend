@@ -62,16 +62,10 @@ export class PaginatedLearningProgressResponseDto {
  */
 export class LearningProgressStatsResponseDto {
   totalReviewed: number;
-  totalMastered: number;
-  masteryRate: number;
   flashcardStats: {
     total: number;
-    mastered: number;
-    inProgress: number;
   };
   sentenceStats: {
     total: number;
-    mastered: number;
-    inProgress: number;
   };
 }

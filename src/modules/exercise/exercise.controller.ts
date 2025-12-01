@@ -362,4 +362,73 @@ export class ExerciseController {
       optionsFile,
     );
   }
+
+  @Post('import-excel/:lessonId')
+  //   @UseGuards(JwtAuthGuard)
+  //   @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Import exercises from Excel file with asset uploads',
+  })
+  @ApiParam({ name: 'lessonId', description: 'Lesson ID' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        excelFile: {
+          type: 'string',
+          format: 'binary',
+          description: 'Excel file containing exercise data',
+        },
+        assets: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description: 'Image and audio asset files',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Excel file imported successfully',
+    type: [ExerciseDto],
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - invalid Excel format or data',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Lesson not found',
+  })
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'excelFile', maxCount: 1 },
+      { name: 'assets', maxCount: 50 },
+    ]),
+  )
+  async importExcel(
+    @Param('lessonId', ParseIntPipe) lessonId: number,
+    @UploadedFiles()
+    files: {
+      excelFile?: Express.Multer.File[];
+      assets?: Express.Multer.File[];
+    },
+  ) {
+    const excelFile = files?.excelFile?.[0];
+    const assetFiles = files?.assets || [];
+
+    if (!excelFile) {
+      throw new BadRequestException('Excel file is required');
+    }
+
+    return this.exerciseService.importFromExcel(
+      lessonId,
+      excelFile.buffer,
+      assetFiles,
+    );
+  }
 }

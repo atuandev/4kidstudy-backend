@@ -15,6 +15,15 @@ import {
 import { ExerciseType } from '@prisma/client';
 import csvParser from 'csv-parser';
 import { Readable } from 'stream';
+import * as XLSX from 'xlsx';
+import { v2 as cloudinary } from 'cloudinary';
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 interface CsvRow {
   [key: string]: string;
@@ -23,6 +32,51 @@ interface CsvRow {
 @Injectable()
 export class ExerciseService {
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * Upload file to Cloudinary
+   * Returns the secure URL of the uploaded file
+   */
+  private async uploadToCloudinary(file: Express.Multer.File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let resourceType: 'image' | 'video' | 'raw' | 'auto' = 'auto';
+      if (file.mimetype.startsWith('image/')) {
+        resourceType = 'image';
+      } else if (
+        file.mimetype.startsWith('audio/') ||
+        file.mimetype.startsWith('video/')
+      ) {
+        resourceType = 'video';
+      }
+
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: resourceType,
+          folder: 'exercises',
+          use_filename: true,
+          unique_filename: true,
+        },
+        (error, result) => {
+          if (error) {
+            reject(
+              new BadRequestException(
+                `Cloudinary upload failed: ${error.message}`,
+              ),
+            );
+          } else if (result) {
+            resolve(result.secure_url);
+          } else {
+            reject(
+              new BadRequestException('Cloudinary upload failed: No result'),
+            );
+          }
+        },
+      );
+
+      const bufferStream = Readable.from(file.buffer);
+      bufferStream.pipe(uploadStream);
+    });
+  }
 
   async findAll(lessonId?: number, type?: ExerciseType) {
     const where: {
@@ -162,8 +216,7 @@ export class ExerciseService {
    * @returns Array of created exercises with their options
    */
   async createMany(createManyDto: CreateManyExercisesDto) {
-    const exercises: CreateExerciseDto[] =
-      createManyDto.exercises as CreateExerciseDto[];
+    const exercises: CreateExerciseDto[] = createManyDto.exercises;
 
     if (!exercises || exercises.length === 0) {
       throw new BadRequestException('No exercises provided');
@@ -813,5 +866,374 @@ export class ExerciseService {
     }
 
     return stats;
+  }
+
+  /**
+   * Import exercises from Excel with asset upload support
+   */
+  async importFromExcel(
+    lessonId: number,
+    buffer: Buffer,
+    assetFiles: Express.Multer.File[] = [],
+  ) {
+    // Check if lesson exists
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+    });
+
+    if (!lesson) {
+      throw new NotFoundException(`Lesson with ID ${lessonId} not found`);
+    }
+
+    try {
+      // Step 1: Upload all assets to Cloudinary and create filename -> URL map
+      const assetMap = new Map<string, string>();
+
+      // console.log(`📦 Received ${assetFiles.length} asset files to upload`);
+
+      for (const file of assetFiles) {
+        try {
+          // console.log(`⬆️  Uploading: ${file.originalname}`);
+          const uploadedUrl = await this.uploadToCloudinary(file);
+          assetMap.set(file.originalname, uploadedUrl);
+          // console.log(`✅ Uploaded: ${file.originalname} -> ${uploadedUrl}`);
+        } catch (error) {
+          console.error(`❌ Failed to upload ${file.originalname}:`, error);
+          // ignore upload failures for individual assets
+        }
+      }
+
+      // console.log(
+      //   `📊 Asset map has ${assetMap.size} entries:`,
+      //   Array.from(assetMap.keys()),
+      // );
+
+      // Step 2: Parse Excel file
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        throw new BadRequestException('Excel file is empty');
+      }
+
+      const worksheet = workbook.Sheets[sheetName];
+
+      interface ExcelRow {
+        Type?: string;
+        type?: string; // Support lowercase as well
+        img?: string | number;
+        audio?: string | number;
+        prompt?: string | number;
+        targetText?: string | number;
+        hintVi?: string | number;
+        hintEn?: string | number;
+        optT?: string | number;
+        optF?: string | number; // Single optF column
+        optF1?: string | number;
+        optF2?: string | number;
+        optF3?: string | number;
+        opt1?: string | number;
+        opt2?: string | number;
+        opt3?: string | number;
+        opt4?: string | number;
+        opt5?: string | number;
+        opt6?: string | number;
+        [key: string]: unknown;
+      }
+
+      // Parse with header array to handle duplicate column names
+      const rawData = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1,
+        defval: '',
+      });
+
+      if (!rawData || rawData.length < 2) {
+        throw new BadRequestException('No data found in Excel file');
+      }
+
+      // Get header row and rename duplicate columns
+      const headerRow = rawData[0] as string[];
+      // console.log('📋 Original Excel headers:', headerRow);
+
+      const columnCounts = new Map<string, number>();
+      const renamedHeaders = headerRow.map((col) => {
+        const colStr = String(col || '').trim();
+        if (!colStr) return colStr;
+
+        // Rename all optF columns to optF1, optF2, optF3
+        if (colStr === 'optF') {
+          const count = columnCounts.get(colStr) || 0;
+          columnCounts.set(colStr, count + 1);
+          return `optF${count + 1}`;
+        }
+
+        return colStr;
+      });
+
+      // console.log('📋 Renamed headers:', renamedHeaders);
+
+      // Convert to JSON with renamed headers
+      const data: ExcelRow[] = [];
+      for (let i = 1; i < rawData.length; i++) {
+        const row = rawData[i] as unknown[];
+        const obj: ExcelRow = {};
+        renamedHeaders.forEach((header, index) => {
+          if (header) {
+            obj[header] = row[index];
+          }
+        });
+        data.push(obj);
+      }
+
+      if (!data || data.length === 0) {
+        throw new BadRequestException('No data found in Excel file');
+      }
+
+      // Get the current max order for this lesson
+      const maxOrderExercise = await this.prisma.exercise.findFirst({
+        where: { lessonId },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      });
+
+      const startOrder = maxOrderExercise ? maxOrderExercise.order + 1 : 0;
+
+      // Helper function to extract filename from path
+      const extractFileName = (path: string): string => {
+        if (!path || typeof path !== 'string') return '';
+        const normalized = path.trim();
+        if (normalized === '\\n' || normalized === '\n') return '';
+        return normalized.split('\\').pop()?.split('/').pop() || '';
+      };
+
+      // Helper function to normalize cell value
+      const normalizeValue = (value: unknown): string => {
+        if (value === undefined || value === null) return '';
+        if (typeof value === 'string') {
+          const s = value.trim();
+          if (s === '\\n' || s === '\n') return '';
+          return s;
+        }
+        if (typeof value === 'object') return '';
+        if (typeof value === 'number' || typeof value === 'boolean') {
+          return String(value).trim();
+        }
+        return '';
+      };
+
+      // Helper function to map file path to uploaded URL
+      const mapAssetUrl = (cellValue: unknown): string => {
+        if (!cellValue) return '';
+        const path = normalizeValue(cellValue);
+        if (!path) return '';
+
+        const fileName = extractFileName(path);
+        if (!fileName) return '';
+
+        const uploadedUrl = assetMap.get(fileName);
+        if (uploadedUrl) {
+          return uploadedUrl;
+        }
+        return '';
+      };
+
+      // Create exercises and options in transaction
+      return this.prisma.$transaction(async (tx) => {
+        const createdExercises = [];
+
+        for (let index = 0; index < data.length; index++) {
+          const row = data[index];
+          // Support both 'Type' and 'type' column names
+          const type = normalizeValue(row.Type || row.type) as ExerciseType;
+
+          // Validate required fields
+          if (!type) {
+            throw new BadRequestException(`Row ${index + 2}: Type is required`);
+          }
+
+          // Validate exercise type
+          const validTypes = Object.values(ExerciseType);
+          if (!validTypes.includes(type)) {
+            throw new BadRequestException(
+              `Row ${index + 2}: Invalid type '${type}'. Valid types: ${validTypes.join(', ')}`,
+            );
+          }
+
+          // Create exercise
+          const exercise = await tx.exercise.create({
+            data: {
+              lessonId,
+              type,
+              order: startOrder + index,
+              prompt: normalizeValue(row.prompt) || null,
+              imageUrl: mapAssetUrl(row.img) || null,
+              audioUrl: mapAssetUrl(row.audio) || null,
+              targetText: normalizeValue(row.targetText) || null,
+              hintVi: normalizeValue(row.hintVi) || null,
+              hintEn: normalizeValue(row.hintEn) || null,
+              points: 10,
+              difficulty: 1,
+            },
+          });
+
+          // Create options based on exercise type
+          if (type === 'SELECT_IMAGE') {
+            // optT: correct image, optF/optF1-3: incorrect images
+            const correctImgPath = row.optT || row.optt || row.OPTT;
+            // After rename, optF columns become optF1, optF2, optF3
+            const incorrectImg1 = row.optF1 || row.optf1 || row.OPTF1;
+            const incorrectImg2 = row.optF2 || row.optf2 || row.OPTF2;
+            const incorrectImg3 = row.optF3 || row.optf3 || row.OPTF3;
+
+            const correctImg = mapAssetUrl(correctImgPath);
+            const incorrectImgs = [
+              { url: mapAssetUrl(incorrectImg1), order: 1 },
+              { url: mapAssetUrl(incorrectImg2), order: 2 },
+              { url: mapAssetUrl(incorrectImg3), order: 3 },
+            ];
+
+            // Always create correct option
+            if (correctImg) {
+              await tx.exerciseOption.create({
+                data: {
+                  exerciseId: exercise.id,
+                  imageUrl: correctImg,
+                  isCorrect: true,
+                  order: 0,
+                },
+              });
+            }
+
+            // Create all incorrect options (even if some URLs are empty)
+            for (const incorrectOpt of incorrectImgs) {
+              if (incorrectOpt.url) {
+                await tx.exerciseOption.create({
+                  data: {
+                    exerciseId: exercise.id,
+                    imageUrl: incorrectOpt.url,
+                    isCorrect: false,
+                    order: incorrectOpt.order,
+                  },
+                });
+              }
+            }
+          } else if (type === 'MULTIPLE_CHOICE' || type === 'LISTENING') {
+            // optT: correct text, optF/optF1-3: incorrect texts
+            const correctTextRaw = row.optT || row.optt || row.OPTT;
+            // After rename, optF columns become optF1, optF2, optF3
+            const incorrectText1 = row.optF1 || row.optf1 || row.OPTF1;
+            const incorrectText2 = row.optF2 || row.optf2 || row.OPTF2;
+            const incorrectText3 = row.optF3 || row.optf3 || row.OPTF3;
+
+            const correctText = normalizeValue(correctTextRaw);
+            const incorrectTexts = [
+              { text: normalizeValue(incorrectText1), order: 1 },
+              { text: normalizeValue(incorrectText2), order: 2 },
+              { text: normalizeValue(incorrectText3), order: 3 },
+            ];
+
+            // Always create correct option
+            if (correctText) {
+              await tx.exerciseOption.create({
+                data: {
+                  exerciseId: exercise.id,
+                  text: correctText,
+                  isCorrect: true,
+                  order: 0,
+                },
+              });
+            }
+
+            // Create all incorrect options (even if some are empty)
+            for (const incorrectOpt of incorrectTexts) {
+              if (incorrectOpt.text) {
+                await tx.exerciseOption.create({
+                  data: {
+                    exerciseId: exercise.id,
+                    text: incorrectOpt.text,
+                    isCorrect: false,
+                    order: incorrectOpt.order,
+                  },
+                });
+              }
+            }
+          } else if (type === 'MATCHING') {
+            // For MATCHING type, pairs are in optT, optF1, optF2, optF3 (same structure as other types)
+            // Each pair is formatted as "left|right" (e.g., "CarImg|g1-u2-car.png" or "Car|xe hơi")
+            // Each pair creates 2 ExerciseOption rows with same matchKey
+
+            const optTVal = normalizeValue(row.optT);
+            const optF1Val = normalizeValue(row.optF1);
+            const optF2Val = normalizeValue(row.optF2);
+            const optF3Val = normalizeValue(row.optF3);
+
+            const allOpts = [optTVal, optF1Val, optF2Val, optF3Val];
+            // console.log(`🔍 MATCHING row ${index + 2} opts:`, allOpts);
+
+            const pairs = allOpts.filter((pair) => pair && pair.includes('|'));
+            // console.log(
+            //   `✅ Found ${pairs.length} valid pairs with '|':`,
+            //   pairs,
+            // );
+
+            let optionOrder = 0;
+            for (let i = 0; i < pairs.length; i++) {
+              const [left, right] = pairs[i].split('|').map((s) => s.trim());
+              const matchKey = `pair_${i + 1}`;
+
+              // Helper to detect if value is image path
+              const isImagePath = (val: string): boolean => {
+                return (
+                  val.match(/\.(jpg|jpeg|png|gif|webp|mp3|mp4)$/i) !== null ||
+                  val.includes('g1-') ||
+                  val.includes('/')
+                );
+              };
+
+              const leftIsImage = isImagePath(left);
+              const rightIsImage = isImagePath(right);
+
+              // Create left side option
+              await tx.exerciseOption.create({
+                data: {
+                  exerciseId: exercise.id,
+                  text: leftIsImage ? null : left,
+                  imageUrl: leftIsImage ? mapAssetUrl(left) || null : null,
+                  matchKey,
+                  isCorrect: false,
+                  order: optionOrder++,
+                },
+              });
+
+              // Create right side option
+              await tx.exerciseOption.create({
+                data: {
+                  exerciseId: exercise.id,
+                  text: rightIsImage ? null : right,
+                  imageUrl: rightIsImage ? mapAssetUrl(right) || null : null,
+                  matchKey,
+                  isCorrect: false,
+                  order: optionOrder++,
+                },
+              });
+            }
+          }
+          // PRONUNCIATION type: no options needed
+
+          createdExercises.push(exercise);
+        }
+
+        return createdExercises;
+      });
+    } catch (error: unknown) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(`Failed to parse Excel file: ${msg}`);
+    }
   }
 }

@@ -18,6 +18,16 @@ import {
   CreateSentenceImageWithSentencesDto,
   SentenceBulkCreateDto,
 } from './dtos/index';
+import * as XLSX from 'xlsx';
+import { v2 as cloudinary } from 'cloudinary';
+import { Readable } from 'stream';
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 type SentenceImageWithSentences = SentenceImage & {
   sentences: (Sentence & {
@@ -390,5 +400,293 @@ export class SentenceService {
     return this.prisma.sentence.delete({
       where: { id },
     });
+  }
+
+  /**
+   * Upload file to Cloudinary
+   * Returns the secure URL of the uploaded file
+   */
+  private async uploadToCloudinary(file: Express.Multer.File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let resourceType: 'image' | 'video' | 'raw' | 'auto' = 'auto';
+      if (file.mimetype.startsWith('image/')) {
+        resourceType = 'image';
+      } else if (
+        file.mimetype.startsWith('audio/') ||
+        file.mimetype.startsWith('video/')
+      ) {
+        resourceType = 'video';
+      }
+
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: resourceType,
+          folder: 'sentences',
+          use_filename: true,
+          unique_filename: true,
+        },
+        (error, result) => {
+          if (error) {
+            reject(
+              new BadRequestException(
+                `Cloudinary upload failed: ${error.message}`,
+              ),
+            );
+          } else if (result) {
+            resolve(result.secure_url);
+          } else {
+            reject(
+              new BadRequestException('Cloudinary upload failed: No result'),
+            );
+          }
+        },
+      );
+
+      const bufferStream = Readable.from(file.buffer);
+      bufferStream.pipe(uploadStream);
+    });
+  }
+
+  /**
+   * Import sentences from Excel file
+   * One Excel row creates one SentenceImage with 1-4 Sentence records
+   */
+  async importFromExcel(
+    topicId: number,
+    buffer: Buffer,
+    assetFiles: Express.Multer.File[] = [],
+  ): Promise<{
+    created: number;
+    sentenceImages: SentenceImageWithSentences[];
+  }> {
+    // Check if topic exists
+    const topic = await this.prisma.topic.findUnique({
+      where: { id: topicId },
+    });
+
+    if (!topic) {
+      throw new NotFoundException(`Topic with ID ${topicId} not found`);
+    }
+
+    try {
+      // Step 1: Upload all assets to Cloudinary and create filename -> URL map
+      const assetMap = new Map<string, string>();
+
+      console.log(`📦 Received ${assetFiles.length} asset files to upload`);
+
+      for (const file of assetFiles) {
+        try {
+          console.log(`⬆️  Uploading: ${file.originalname}`);
+          const uploadedUrl = await this.uploadToCloudinary(file);
+          assetMap.set(file.originalname, uploadedUrl);
+          console.log(`✅ Uploaded: ${file.originalname} -> ${uploadedUrl}`);
+        } catch (error) {
+          console.error(`❌ Failed to upload ${file.originalname}:`, error);
+          // ignore upload failures for individual assets
+        }
+      }
+
+      console.log(
+        `📊 Asset map has ${assetMap.size} entries:`,
+        Array.from(assetMap.keys()),
+      );
+
+      // Step 2: Parse Excel file
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        throw new BadRequestException('Excel file is empty');
+      }
+
+      const worksheet = workbook.Sheets[sheetName];
+
+      interface ExcelRow {
+        imgSentence?: string | number;
+        audioImg?: string | number;
+        sen01?: string | number;
+        sen01Vi?: string | number;
+        sen01audio?: string | number;
+        sen02?: string | number;
+        sen02Vi?: string | number;
+        sen02audio?: string | number;
+        sen03?: string | number;
+        sen03Vi?: string | number;
+        sen03audio?: string | number;
+        sen04?: string | number;
+        sen04Vi?: string | number;
+        sen04audio?: string | number;
+        [key: string]: unknown;
+      }
+
+      // Parse Excel with default empty string for missing cells
+      const data: ExcelRow[] = XLSX.utils.sheet_to_json(worksheet, {
+        defval: '',
+      });
+
+      if (!data || data.length === 0) {
+        throw new BadRequestException('No data found in Excel file');
+      }
+
+      console.log(`📊 Found ${data.length} rows in Excel`);
+
+      // Get the current max order for this topic
+      const maxOrderSentenceImage = await this.prisma.sentenceImage.findFirst({
+        where: { topicId },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      });
+
+      const startOrder = maxOrderSentenceImage
+        ? maxOrderSentenceImage.order + 1
+        : 0;
+
+      // Helper function to normalize values
+      const normalizeValue = (
+        val: string | number | null | undefined,
+      ): string => {
+        if (val === null || val === undefined) return '';
+        const str = String(val).trim();
+        // Treat '\n' as null/empty
+        if (str === '\\n' || str === '\n') return '';
+        return str;
+      };
+
+      // Helper function to map asset filename to URL
+      const mapAssetUrl = (
+        filename: string | number | null | undefined,
+      ): string | null => {
+        const normalized = normalizeValue(filename);
+        if (!normalized) return null;
+
+        // Extract just the filename if path is provided
+        const name = normalized.split(/[/\\]/).pop() || normalized;
+
+        const url = assetMap.get(name);
+        if (url) {
+          return url;
+        }
+
+        // Try case-insensitive search
+        for (const [key, value] of assetMap.entries()) {
+          if (key.toLowerCase() === name.toLowerCase()) {
+            return value;
+          }
+        }
+
+        console.warn(`⚠️  Asset not found for: ${normalized}`);
+        return null;
+      };
+
+      // Step 3: Create SentenceImage and Sentence records in transaction
+      const createdSentenceImages: SentenceImageWithSentences[] = [];
+
+      await this.prisma.$transaction(async (tx) => {
+        for (const [index, row] of data.entries()) {
+          const rowNum = index + 1;
+
+          // Get SentenceImage fields
+          const imageUrl = mapAssetUrl(row.imgSentence);
+          const audioUrl = mapAssetUrl(row.audioImg);
+
+          if (!imageUrl) {
+            console.warn(`⚠️  Row ${rowNum}: Missing imgSentence, skipping...`);
+            continue;
+          }
+
+          // Create SentenceImage
+          const sentenceImage = await tx.sentenceImage.create({
+            data: {
+              topicId,
+              imageUrl,
+              audioUrl,
+              order: startOrder + index,
+              isActive: true,
+            },
+            include: {
+              topic: true,
+            },
+          });
+
+          // Collect sentences (sen01-04)
+          const sentencesData: Array<{
+            text: string;
+            meaningVi: string | null;
+            audioUrl: string | null;
+            order: number;
+          }> = [];
+
+          for (let i = 1; i <= 4; i++) {
+            const senKey = `sen0${i}`;
+            const senViKey = `sen0${i}Vi`;
+            const senAudioKey = `sen0${i}audio`;
+
+            const text = normalizeValue(
+              row[senKey] as string | number | undefined,
+            );
+            if (!text) continue; // Skip empty sentence
+
+            const meaningVi =
+              normalizeValue(row[senViKey] as string | number | undefined) ||
+              null;
+            const audioUrl = mapAssetUrl(
+              row[senAudioKey] as string | number | undefined,
+            );
+
+            sentencesData.push({
+              text,
+              meaningVi,
+              audioUrl,
+              order: i - 1,
+            });
+          }
+
+          console.log(
+            `📝 Row ${rowNum}: Creating SentenceImage with ${sentencesData.length} sentences`,
+          );
+
+          // Create all sentences for this SentenceImage
+          const sentences = await Promise.all(
+            sentencesData.map((sentenceData) =>
+              tx.sentence.create({
+                data: {
+                  sentenceImageId: sentenceImage.id,
+                  text: sentenceData.text,
+                  meaningVi: sentenceData.meaningVi,
+                  hintVi: null,
+                  audioUrl: sentenceData.audioUrl,
+                  order: sentenceData.order,
+                  isActive: true,
+                },
+              }),
+            ),
+          );
+
+          createdSentenceImages.push({
+            ...sentenceImage,
+            sentences,
+          });
+        }
+      });
+
+      console.log(
+        `✅ Import completed: ${createdSentenceImages.length} SentenceImages created`,
+      );
+
+      return {
+        created: createdSentenceImages.length,
+        sentenceImages: createdSentenceImages,
+      };
+    } catch (error) {
+      console.error('❌ Import failed:', error);
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException(
+        `Failed to import Excel: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
   }
 }

@@ -5,11 +5,13 @@ import {
   XPStatsResponseDto,
   LeaderboardResponseDto,
   LeaderboardEntryDto,
+  TopicXPStatsResponseDto,
 } from './dtos/res';
+
 
 @Injectable()
 export class LeaderboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Get streak statistics for a user within specified days
@@ -96,6 +98,97 @@ export class LeaderboardService {
   }
 
   /**
+   * Get XP statistics grouped by Topic for a user
+   */
+  async getTopicXPStats(
+    userId: number,
+    days: number,
+  ): Promise<TopicXPStatsResponseDto> {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days + 1);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Get all XP logs for the user that have a lessonId within the date range
+    const xpLogs = await this.prisma.xPLog.findMany({
+      where: {
+        userId,
+        lessonId: {
+          not: null,
+        },
+        createdAt: {
+          gte: startDate,
+        },
+      },
+      include: {
+        user: false,
+      },
+    });
+
+    // Get lesson and topic info for each unique lessonId
+    const lessonIds = [...new Set(xpLogs.map((log) => log.lessonId))].filter(
+      (id): id is number => id !== null,
+    );
+
+    const lessons = await this.prisma.lesson.findMany({
+      where: {
+        id: {
+          in: lessonIds,
+        },
+      },
+      include: {
+        topic: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+    });
+
+    // Create a map of lessonId -> topic
+    const lessonToTopic = new Map(
+      lessons.map((lesson) => [lesson.id, lesson.topic]),
+    );
+
+    // Group XP by topic
+    const topicXPMap = new Map<number, { title: string; xp: number }>();
+
+    for (const log of xpLogs) {
+      if (log.lessonId === null) continue;
+
+      const topic = lessonToTopic.get(log.lessonId);
+      if (!topic) continue;
+
+      const existing = topicXPMap.get(topic.id);
+      if (existing) {
+        existing.xp += log.amount;
+      } else {
+        topicXPMap.set(topic.id, {
+          title: topic.title,
+          xp: log.amount,
+        });
+      }
+    }
+
+    // Convert to array and sort by XP descending
+    const data = Array.from(topicXPMap.entries())
+      .map(([topicId, { title, xp }]) => ({
+        topicId,
+        topicTitle: title,
+        xpEarned: xp,
+      }))
+      .sort((a, b) => b.xpEarned - a.xpEarned);
+
+    const totalXP = data.reduce((sum, item) => sum + item.xpEarned, 0);
+
+    return {
+      data,
+      totalXP,
+    };
+  }
+
+  /**
+
    * Get weekly leaderboard for user's grade
    * Resets every Sunday (week starts on Monday)
    */

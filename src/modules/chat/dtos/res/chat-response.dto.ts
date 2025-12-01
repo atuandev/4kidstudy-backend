@@ -1,3 +1,9 @@
 export class ChatResponseDto {
-  text: string;
+  response: string;
+  translation?: {
+    word: string;
+    meaning: string;
+    phonetic?: string;
+    examples?: string[];
+  };
 }
