@@ -22,6 +22,7 @@ import {
   PaginatedAttemptsResponseDto,
   AttemptDetailResponseDto,
   PracticeStatisticsResponseDto,
+  MostWrongExerciseStatsDto,
 } from './dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
@@ -144,6 +145,21 @@ export class AttemptController {
   ): Promise<PracticeStatisticsResponseDto> {
     const userId = req.user.id;
     return this.attemptService.getPracticeStatistics(userId);
+  }
+
+  /**
+   * Get most wrong exercises for a lesson
+   * GET /attempts/statistics/most-wrong-exercises
+   */
+  @Get('statistics/most-wrong-exercises')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async getMostWrongExercisesByLesson(
+    @Request() req: any,
+    @Query('lessonId', ParseIntPipe) lessonId: number,
+  ): Promise<MostWrongExerciseStatsDto[]> {
+    const userId = req.user.id;
+    return this.attemptService.getMostWrongExercisesByLesson(userId, lessonId);
   }
 
   /**

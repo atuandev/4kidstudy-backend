@@ -15,6 +15,7 @@ import {
   PaginatedAttemptsResponseDto,
   AttemptDetailResponseDto,
   PracticeStatisticsResponseDto,
+  MostWrongExerciseStatsDto,
 } from './dto';
 import {
   AttemptWithDetails,
@@ -598,6 +599,74 @@ export class AttemptService {
         incorrectCount: b.incorrectCount,
       })),
     };
+  }
+
+  /**
+   * Get most wrong exercises in a lesson for a specific user,
+   * including first and second wrong counts.
+   */
+  async getMostWrongExercisesByLesson(
+    userId: number,
+    lessonId: number,
+  ): Promise<MostWrongExerciseStatsDto[]> {
+    const details = await this.prisma.attemptDetail.findMany({
+      where: {
+        attempt: {
+          userId,
+        },
+        exercise: {
+          lessonId,
+        },
+      },
+      include: {
+        exercise: {
+          select: {
+            id: true,
+            order: true,
+            prompt: true,
+          },
+        },
+        attempt: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
+
+    const statsByExerciseId: Map<number, MostWrongExerciseStatsDto> = new Map();
+
+    details.forEach((detail) => {
+      if (!detail.exercise) {
+        return;
+      }
+
+      const exerciseId = detail.exercise.id;
+
+      const existing = statsByExerciseId.get(exerciseId) ?? {
+        exerciseId,
+        exerciseOrder: detail.exercise.order,
+        exercisePrompt: detail.exercise.prompt ?? undefined,
+        firstWrongCount: 0,
+        secondWrongCount: 0,
+        totalWrongCount: 0,
+      };
+
+      if (detail.points === 5) {
+        existing.firstWrongCount += 1;
+      } else if (detail.points === 0) {
+        existing.secondWrongCount += 1;
+      }
+
+      existing.totalWrongCount =
+        existing.firstWrongCount + existing.secondWrongCount;
+
+      statsByExerciseId.set(exerciseId, existing);
+    });
+
+    const stats = Array.from(statsByExerciseId.values());
+
+    return stats.sort((a, b) => b.totalWrongCount - a.totalWrongCount);
   }
 
   /**
