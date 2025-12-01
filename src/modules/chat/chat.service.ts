@@ -37,9 +37,19 @@ LANGUAGE RULES:
 - NO emojis in responses
 
 TRANSLATION RULES:
-- Reply with ONLY the translation (max 3 words)
-- Format: "word: translation"
-- NO explanations
+- Reply with ONLY the translated word
+- DO NOT add anything else
+- DO NOT explain or apologize
+
+Correct examples:
+Q: "Cat nghia la gi?" -> A: "con meo"
+Q: "Con meo tieng Anh?" -> A: "cat"
+Q: "dog la gi?" -> A: "con cho"
+
+Wrong examples - DO NOT DO:
+"Cat tieng Viet la con meo"
+"cat: con meo"
+"Xin loi, toi..."
 
 SYSTEM QUERY RULES:
 - I will provide database data in the conversation
@@ -295,8 +305,10 @@ SYSTEM QUERY RULES:
       /unit .+ (học về|về) (cái )?gì/i,
       /unit .+ (có )?(là )?gì/i,
       /unit .+ (có|gồm) (những )?câu (nào|gì)/i,
+      /unit .+ (có )?mấy câu/i,  // "unit 9 có mấy câu"
       /unit .+ (có|gồm) (những )?sentence/i,
       /unit .+ (có|gồm) (những )?(từ vựng|từ|flashcard|vocabulary)/i,
+      /unit .+ (có )?mấy (từ vựng|từ|flashcard)/i,  // "unit 9 có mấy từ vựng"
       /(các )?câu (trong|ở) unit/i,
       /sentences? (trong|ở|của) unit/i,
       /(các )?(từ vựng|từ|flashcard|vocabulary) (trong|ở|của) unit/i,
@@ -824,6 +836,8 @@ SYSTEM QUERY RULES:
       const word = this.extractWord(dto.message);
       translation = await this.translateWord(word);
       aiResponse = this.formatTranslationResponse(translation);
+      // DON'T return translation object - it causes duplicate display in UI
+      translation = undefined;
     }
     // 3. General conversation
     else {
@@ -958,8 +972,8 @@ Input: "cái nồi" → Output: "pot"`;
     translation: ChatResponseDto['translation'],
   ): string {
     if (!translation) return '';
-    // Format: "word: meaning" (e.g., "cat: con mèo")
-    return `${translation.word}: ${translation.meaning}`;
+    // Just return the meaning - AI will format it naturally
+    return translation.meaning;
   }
 
   private async callAI(
