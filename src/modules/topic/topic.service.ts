@@ -8,8 +8,29 @@ export class TopicService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createTopicDto: CreateTopicDto) {
+    let order = createTopicDto.order;
+
+    // Auto-generate order if not provided
+    // When creating a new topic without order, find the highest order for the grade and increment
+    if (
+      order === undefined ||
+      order === null ||
+      Number.isNaN(order) ||
+      order === 0
+    ) {
+      const lastTopic = await this.prisma.topic.findFirst({
+        where: { grade: createTopicDto.grade },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      });
+      order = lastTopic ? lastTopic.order + 1 : 0;
+    }
+
     return this.prisma.topic.create({
-      data: createTopicDto,
+      data: {
+        ...createTopicDto,
+        order,
+      },
     });
   }
 
@@ -26,7 +47,7 @@ export class TopicService {
 
     return this.prisma.topic.findMany({
       where,
-      orderBy: [{ title: 'asc' }],
+      orderBy: [{ order: 'asc' }],
       include: {
         lessons: {
           where: {
