@@ -26,7 +26,7 @@ export class TopicService {
 
     return this.prisma.topic.findMany({
       where,
-      orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ title: 'asc' }],
       include: {
         lessons: {
           where: {
