@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Gender, UserRole } from '@prisma/client';
+import { Gender, GradeLevel, UserRole } from '@prisma/client';
 
 export class UserProfileDto {
   @ApiProperty({ example: 1 })
@@ -37,6 +37,15 @@ export class UserProfileDto {
 
   @ApiProperty({ example: true })
   isActive: boolean;
+
+  @ApiProperty({
+    example: GradeLevel.GRADE_1,
+    enum: GradeLevel,
+  })
+  grade: GradeLevel;
+
+  @ApiProperty({ example: true })
+  isVerified: boolean;
 
   @ApiProperty({ example: '2024-01-01T00:00:00.000Z' })
   createdAt: Date;
