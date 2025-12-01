@@ -10,10 +10,65 @@ import {
   UpdateFlashcardDto,
   FlashcardBulkCreateDto,
 } from './dtos/index';
+import * as XLSX from 'xlsx';
+import { v2 as cloudinary } from 'cloudinary';
+import { Readable } from 'stream';
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 @Injectable()
 export class FlashcardService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Upload file to Cloudinary
+   * Returns the secure URL of the uploaded file
+   */
+  private async uploadToCloudinary(file: Express.Multer.File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let resourceType: 'image' | 'video' | 'raw' | 'auto' = 'auto';
+      if (file.mimetype.startsWith('image/')) {
+        resourceType = 'image';
+      } else if (
+        file.mimetype.startsWith('audio/') ||
+        file.mimetype.startsWith('video/')
+      ) {
+        resourceType = 'video';
+      }
+
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: resourceType,
+          folder: 'flashcards',
+          use_filename: true,
+          unique_filename: true,
+        },
+        (error, result) => {
+          if (error) {
+            reject(
+              new BadRequestException(
+                `Cloudinary upload failed: ${error.message}`,
+              ),
+            );
+          } else if (result) {
+            resolve(result.secure_url);
+          } else {
+            reject(
+              new BadRequestException('Cloudinary upload failed: No result'),
+            );
+          }
+        },
+      );
+
+      const bufferStream = Readable.from(file.buffer);
+      bufferStream.pipe(uploadStream);
+    });
+  }
 
   async create(createFlashcardDto: CreateFlashcardDto) {
     // Check if topic exists
@@ -320,5 +375,167 @@ export class FlashcardService {
       }
       return updatedFlashcards;
     });
+  }
+
+  async importFromExcel(
+    topicId: number,
+    buffer: Buffer,
+    assetFiles: Express.Multer.File[] = [],
+  ) {
+    // Check if topic exists
+    const topic = await this.prisma.topic.findUnique({
+      where: { id: topicId },
+    });
+
+    if (!topic) {
+      throw new NotFoundException(`Topic with ID ${topicId} not found`);
+    }
+
+    try {
+      // Step 1: Upload all assets to Cloudinary and create filename -> URL map
+      const assetMap = new Map<string, string>();
+
+      for (const file of assetFiles) {
+        try {
+          const uploadedUrl = await this.uploadToCloudinary(file);
+          assetMap.set(file.originalname, uploadedUrl);
+        } catch {
+          // ignore upload failures for individual assets
+        }
+      }
+
+      // Step 2: Parse Excel file
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        throw new BadRequestException('Excel file is empty');
+      }
+
+      const worksheet = workbook.Sheets[sheetName];
+
+      interface ExcelRow {
+        term?: string | number;
+        meaningVi?: string | number;
+        phonetic?: string | number;
+        ExEn?: string | number;
+        ExVi?: string | number;
+        img?: string | number;
+        audio?: string | number;
+        [key: string]: unknown;
+      }
+
+      const data = XLSX.utils.sheet_to_json<ExcelRow>(worksheet, {
+        defval: '',
+      });
+
+      if (!data || data.length === 0) {
+        throw new BadRequestException('No data found in Excel file');
+      }
+
+      // Get the current max order for this topic
+      const maxOrderFlashcard = await this.prisma.flashcard.findFirst({
+        where: { topicId },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      });
+
+      const startOrder = maxOrderFlashcard ? maxOrderFlashcard.order + 1 : 0;
+
+      // Helper function to extract filename from path
+      const extractFileName = (path: string): string => {
+        if (!path || typeof path !== 'string') return '';
+        const normalized = path.trim();
+        if (normalized === '\\n' || normalized === '\n') return '';
+        return normalized.split('\\').pop()?.split('/').pop() || '';
+      };
+
+      // Helper function to normalize cell value
+      const normalizeValue = (value: unknown): string => {
+        if (value === undefined || value === null) return '';
+        if (typeof value === 'string') {
+          const s = value.trim();
+          if (s === '\n' || s === '\n') return '';
+          return s;
+        }
+        if (typeof value === 'object') return '';
+        if (typeof value === 'number' || typeof value === 'boolean') {
+          return String(value).trim();
+        }
+        return '';
+      };
+
+      // Helper function to map file path to uploaded URL
+      const mapAssetUrl = (cellValue: any): string => {
+        if (!cellValue) return '';
+        const path = normalizeValue(cellValue);
+        if (!path) return '';
+
+        const fileName = extractFileName(path);
+        if (!fileName) return '';
+
+        const uploadedUrl = assetMap.get(fileName);
+        if (uploadedUrl) {
+          return uploadedUrl;
+        }
+        return '';
+      };
+
+      // Map Excel rows to flashcard DTOs
+      const flashcards: CreateFlashcardDto[] = data.map((row, index) => {
+        const term = normalizeValue(row.term);
+        const meaningVi = normalizeValue(row.meaningVi);
+
+        // Validate required fields
+        if (!term || !meaningVi) {
+          throw new BadRequestException(
+            `Row ${index + 2}: term and meaningVi are required`,
+          );
+        }
+
+        return {
+          topicId,
+          term,
+          phonetic: normalizeValue(row.phonetic),
+          meaningVi,
+          exampleEn: normalizeValue(row.ExEn),
+          exampleVi: normalizeValue(row.ExVi),
+          imageUrl: mapAssetUrl(row.img),
+          audioUrl: mapAssetUrl(row.audio),
+          order: startOrder + index,
+          isActive: true,
+        };
+      });
+
+      // Create flashcards in transaction
+      return this.prisma.$transaction(async (tx) => {
+        const createdFlashcards = [];
+        for (const flashcard of flashcards) {
+          const created = await tx.flashcard.create({
+            data: flashcard,
+            include: {
+              topic: {
+                select: {
+                  id: true,
+                  title: true,
+                  grade: true,
+                },
+              },
+            },
+          });
+          createdFlashcards.push(created);
+        }
+        return createdFlashcards;
+      });
+    } catch (error: unknown) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(`Failed to parse Excel file: ${msg}`);
+    }
   }
 }

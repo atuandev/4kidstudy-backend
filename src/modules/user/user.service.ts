@@ -22,6 +22,8 @@ export class UserService {
         avatarUrl: true,
         dob: true,
         gender: true,
+        grade: true,
+        isVerified: true,
         xp: true,
         streakDays: true,
         isActive: true,
@@ -49,6 +51,8 @@ export class UserService {
         avatarUrl: true,
         dob: true,
         gender: true,
+        grade: true,
+        isVerified: true,
         xp: true,
         streakDays: true,
         isActive: true,
@@ -69,11 +73,13 @@ export class UserService {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
-    // Convert null values to undefined for proper DTO mapping
+    // Normalize nullable values and ensure grade/isVerified are always present
     return {
       ...user,
       avatarUrl: user.avatarUrl || undefined,
       dob: user.dob || undefined,
+      grade: user.grade ?? 'GRADE_1',
+      isVerified: user.isVerified ?? false,
     };
   }
 
@@ -139,6 +145,8 @@ export class UserService {
         avatarUrl: true,
         dob: true,
         gender: true,
+        grade: true,
+        isVerified: true,
         xp: true,
         streakDays: true,
         isActive: true,
@@ -157,6 +165,8 @@ export class UserService {
       ...updated,
       avatarUrl: updated.avatarUrl || undefined,
       dob: updated.dob || undefined,
+      grade: updated.grade ?? 'GRADE_1',
+      isVerified: updated.isVerified ?? false,
     };
   }
 }

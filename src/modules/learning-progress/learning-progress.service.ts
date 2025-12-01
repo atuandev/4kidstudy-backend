@@ -171,7 +171,7 @@ export class LearningProgressService {
       });
     }
 
-    // Update progress (increment review count)
+    // Update progress (increment review count and set isMastered if passed in assessment)
     const updatedProgress = await this.prisma.learningProgress.update({
       where: { id: progress.id },
       data: {
@@ -404,56 +404,25 @@ export class LearningProgressService {
   async getUserStats(
     userId: number,
   ): Promise<LearningProgressStatsResponseDto> {
-    const [
-      totalReviewed,
-      totalMastered,
-      flashcardTotal,
-      flashcardMastered,
-      sentenceTotal,
-      sentenceMastered,
-    ] = await Promise.all([
+    const [totalReviewed, flashcardTotal, sentenceTotal] = await Promise.all([
       this.prisma.learningProgress.count({
         where: { userId },
-      }),
-      this.prisma.learningProgress.count({
-        where: { userId, isMastered: true },
       }),
       this.prisma.learningProgress.count({
         where: { userId, contentType: LearningContentType.FLASHCARD },
       }),
       this.prisma.learningProgress.count({
-        where: {
-          userId,
-          contentType: LearningContentType.FLASHCARD,
-          isMastered: true,
-        },
-      }),
-      this.prisma.learningProgress.count({
         where: { userId, contentType: LearningContentType.SENTENCE },
-      }),
-      this.prisma.learningProgress.count({
-        where: {
-          userId,
-          contentType: LearningContentType.SENTENCE,
-          isMastered: true,
-        },
       }),
     ]);
 
     return {
       totalReviewed,
-      totalMastered,
-      masteryRate:
-        totalReviewed > 0 ? (totalMastered / totalReviewed) * 100 : 0,
       flashcardStats: {
         total: flashcardTotal,
-        mastered: flashcardMastered,
-        inProgress: flashcardTotal - flashcardMastered,
       },
       sentenceStats: {
         total: sentenceTotal,
-        mastered: sentenceMastered,
-        inProgress: sentenceTotal - sentenceMastered,
       },
     };
   }
@@ -535,11 +504,12 @@ export class LearningProgressService {
       where: { topicId },
     });
 
-    // Count reviewed flashcards by user in this topic
+    // Count mastered flashcards by user in this topic (only isMastered = true)
     const reviewedFlashcards = await this.prisma.learningProgress.count({
       where: {
         userId,
         contentType: LearningContentType.FLASHCARD,
+        isMastered: true, // Only count mastered flashcards
         flashcard: {
           topicId,
         },
@@ -596,11 +566,12 @@ export class LearningProgressService {
       },
     });
 
-    // Count reviewed sentences by user in this topic
+    // Count mastered sentences by user in this topic (only isMastered = true)
     const reviewedSentences = await this.prisma.learningProgress.count({
       where: {
         userId,
         contentType: LearningContentType.SENTENCE,
+        isMastered: true, // Only count mastered sentences
         sentence: {
           sentenceImage: {
             topicId,
@@ -678,6 +649,60 @@ export class LearningProgressService {
       lastReviewedFlashcardIndex,
       lastReviewedSentenceIndex,
     };
+  }
+
+  /**
+   * Get mastered flashcard IDs for a specific topic (isMastered = true)
+   */
+  async getReviewedFlashcardIds(
+    userId: number,
+    topicId: number,
+  ): Promise<number[]> {
+    const progressList = await this.prisma.learningProgress.findMany({
+      where: {
+        userId,
+        contentType: LearningContentType.FLASHCARD,
+        isMastered: true, // Only get mastered flashcards
+        flashcard: {
+          topicId,
+        },
+      },
+      select: {
+        flashcardId: true,
+      },
+    });
+
+    return progressList
+      .map((p) => p.flashcardId)
+      .filter((id): id is number => id !== null);
+  }
+
+  /**
+   * Get mastered sentence IDs for a specific topic (isMastered = true)
+   */
+  async getReviewedSentenceIds(
+    userId: number,
+    topicId: number,
+  ): Promise<number[]> {
+    const progressList = await this.prisma.learningProgress.findMany({
+      where: {
+        userId,
+        contentType: LearningContentType.SENTENCE,
+        isMastered: true, // Only get mastered sentences
+        sentence: {
+          sentenceImage: {
+            topicId,
+          },
+        },
+      },
+      select: {
+        sentenceId: true,
+      },
+    });
+
+    return progressList
+      .map((p) => p.sentenceId)
+      .filter((id): id is number => id !== null);
   }
 
   /**

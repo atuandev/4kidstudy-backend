@@ -9,3 +9,4 @@ export * from './req/get-attempts-query.dto';
 export * from './res/attempt-response.dto';
 export * from './res/attempt-detail-response.dto';
 export * from './res/practice-statistics-response.dto';
+export * from './res/most-wrong-exercise-response.dto';

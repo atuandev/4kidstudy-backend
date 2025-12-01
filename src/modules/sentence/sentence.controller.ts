@@ -10,6 +10,8 @@ import {
   ParseIntPipe,
   HttpStatus,
   HttpCode,
+  UseInterceptors,
+  UploadedFiles,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,7 +20,9 @@ import {
   ApiParam,
   ApiQuery,
   ApiBody,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { SentenceService } from './sentence.service';
 import {
   CreateSentenceImageDto,
@@ -351,5 +355,58 @@ export class SentenceController {
   @HttpCode(HttpStatus.OK)
   async deleteSentence(@Param('id', ParseIntPipe) id: number) {
     return this.sentenceService.deleteSentence(id);
+  }
+
+  @Post('import-excel/:topicId')
+  @ApiOperation({
+    summary: 'Import sentences from Excel',
+    description:
+      'Imports sentence images and sentences from an Excel file. One Excel row creates one SentenceImage with 1-4 Sentence records. Supports uploading images and audio files along with the Excel file.',
+  })
+  @ApiParam({
+    name: 'topicId',
+    description: 'Topic ID to import sentences into',
+    type: 'number',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({
+    status: 201,
+    description: 'Sentences imported successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation failed or invalid Excel format',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Topic not found',
+  })
+  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'excel', maxCount: 1 },
+      { name: 'assets', maxCount: 100 },
+    ]),
+  )
+  async importFromExcel(
+    @Param('topicId', ParseIntPipe) topicId: number,
+    @UploadedFiles()
+    files: {
+      excel?: Express.Multer.File[];
+      assets?: Express.Multer.File[];
+    },
+  ) {
+    if (!files.excel || files.excel.length === 0) {
+      throw new Error('Excel file is required');
+    }
+
+    const excelFile = files.excel[0];
+    const assetFiles = files.assets || [];
+
+    return this.sentenceService.importFromExcel(
+      topicId,
+      excelFile.buffer,
+      assetFiles,
+    );
   }
 }
