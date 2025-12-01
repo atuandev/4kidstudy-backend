@@ -37,16 +37,27 @@ LANGUAGE RULES:
 - NO emojis in responses
 
 TRANSLATION RULES:
-- Reply with ONLY the translation (max 3 words)
-- Format: "word: translation"
-- NO explanations
+- Reply with ONLY the translated word
+- DO NOT add anything else
+- DO NOT explain or apologize
+
+Correct examples:
+Q: "Cat nghia la gi?" -> A: "con meo"
+Q: "Con meo tieng Anh?" -> A: "cat"
+Q: "dog la gi?" -> A: "con cho"
+
+Wrong examples - DO NOT DO:
+"Cat tieng Viet la con meo"
+"cat: con meo"
+"Xin loi, toi..."
 
 SYSTEM QUERY RULES:
 - I will provide database data in the conversation
 - You MUST use the EXACT data provided, do NOT make up information
-- When I provide "User's name: John", reply with John, not "User"
+- When I provide "User's name: X", reply using X directly (not "User")
 - When I provide statistics, report them accurately
-- Be concise and natural: "You learned 5 words", "Bạn đã học 3 bài"`,
+- Be concise and natural: "You learned 5 words", "Bạn đã học 3 bài"
+- IMPORTANT: "exercises" = "bài tập" or "bài luyện tập" (NOT "bài học")`,
     });
 
     this.logger.log('ChatService initialized with gemini-2.0-flash');
@@ -295,8 +306,19 @@ SYSTEM QUERY RULES:
       /unit .+ (học về|về) (cái )?gì/i,
       /unit .+ (có )?(là )?gì/i,
       /unit .+ (có|gồm) (những )?câu (nào|gì)/i,
+      /unit .+ (có )?mấy câu/i,  // "unit 9 có mấy câu"
       /unit .+ (có|gồm) (những )?sentence/i,
       /unit .+ (có|gồm) (những )?(từ vựng|từ|flashcard|vocabulary)/i,
+      /unit .+ (có )?mấy (từ vựng|từ|flashcard)/i,  // "unit 9 có mấy từ vựng"
+      /unit .+ (có )?mấy bài (tập|luyện tập)/i,  // "unit 9 có mấy bài tập"
+      /(hoàn thành|đã làm|đã học) mấy bài (tập|luyện tập).*(unit|topic)/i,  // "hoàn thành mấy bài tập trong unit 10"
+      /còn mấy bài (tập|luyện tập).*(chưa|không)/i,  // "còn mấy bài tập chưa hoàn thành"
+
+      // Exercise performance/score queries
+      /(dạng )?bài (tập|luyện tập) nào.*(điểm|cao|thấp|tốt|kém)/i,  // "bài tập nào tôi đạt điểm cao nhất"
+      /(dạng )?bài (tập|luyện tập).*(nhiều|ít) điểm/i,  // "dạng bài tập nào tôi đạt nhiều điểm nhất"
+      /đạt điểm.*bài (tập|luyện tập)/i,  // "đạt điểm cao nhất ở bài tập nào"
+
       /(các )?câu (trong|ở) unit/i,
       /sentences? (trong|ở|của) unit/i,
       /(các )?(từ vựng|từ|flashcard|vocabulary) (trong|ở|của) unit/i,
@@ -353,6 +375,15 @@ SYSTEM QUERY RULES:
   private async fetchSystemData(userId: number, message: string): Promise<string> {
     const msg = message.toLowerCase();
     let contextData = '';
+
+    // ALWAYS include user's name for personalization  
+    const userForName = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    if (userForName?.name) {
+      contextData += `User's name: ${userForName.name}\n\n`;
+    }
 
     // Get user stats for most queries
     const stats = await this.getUserStats(userId);
@@ -480,8 +511,181 @@ SYSTEM QUERY RULES:
       (msg.includes('progress') && !msg.includes('word') && !msg.includes('sentence'))
     ) {
       const progress = await this.getUserLessonProgress(userId);
-      contextData += `Completed lessons: ${progress.completedLessons} out of ${progress.totalLessons}\n`;
+      contextData += `Completed exercises: ${progress.completedLessons} out of ${progress.totalLessons}\n`;
       contextData += `Total attempts: ${progress.totalAttempts}\n`;
+    }
+
+    // Exercise completion in specific unit
+    const exerciseMatch = msg.match(/unit (\d+|[a-z]+)/i);
+    const isExerciseQuery =
+      (msg.includes('hoàn thành') || msg.includes('đã làm') || msg.includes('còn')) &&
+      (msg.includes('bài tập') || msg.includes('bài luyện tập'));
+
+    if (exerciseMatch && isExerciseQuery) {
+      const unitId = exerciseMatch[1].toLowerCase();
+
+      // Find topic by title containing unit number
+      const topic = await this.prisma.topic.findFirst({
+        where: {
+          title: { contains: unitId, mode: 'insensitive' },
+          grade: stats.grade,
+        },
+        select: {
+          id: true,
+          title: true,
+          lessons: {
+            select: { id: true },
+          },
+        },
+      });
+
+      if (topic) {
+        const totalExercises = topic.lessons.length;
+
+        // Count completed exercises
+        const completedCount = await this.prisma.attempt.count({
+          where: {
+            userId,
+            isCompleted: true,
+            lesson: { topicId: topic.id },
+          },
+        });
+
+        const remaining = totalExercises - completedCount;
+
+        contextData += `\nExercise Progress for ${topic.title}:\n`;
+        contextData += `- Completed: ${completedCount} exercises\n`;
+        contextData += `- Remaining: ${remaining} exercises\n`;
+        contextData += `- Total: ${totalExercises} exercises\n`;
+      }
+    }
+    // General exercise completion (all units)
+    else if (isExerciseQuery && !exerciseMatch) {
+      // Get all topics in user's grade
+      const allTopics = await this.prisma.topic.findMany({
+        where: { grade: stats.grade, isActive: true },
+        select: {
+          id: true,
+          lessons: { select: { id: true } },
+        },
+      });
+
+      const totalExercises = allTopics.reduce((sum, t) => sum + t.lessons.length, 0);
+
+      // Count all completed exercises
+      const topicIds = allTopics.map(t => t.id);
+      const completedCount = await this.prisma.attempt.count({
+        where: {
+          userId,
+          isCompleted: true,
+          lesson: { topicId: { in: topicIds } },
+        },
+      });
+
+      const remaining = totalExercises - completedCount;
+
+      contextData += `\nOverall Exercise Progress:\n`;
+      contextData += `- Completed: ${completedCount} exercises\n`;
+      contextData += `- Remaining: ${remaining} exercises\n`;
+      contextData += `- Total: ${totalExercises} exercises in grade ${stats.grade}\n`;
+    }
+
+    // Exercise performance/score queries
+    const isTypeScoreQuery =
+      msg.includes('dạng') &&
+      (msg.includes('điểm') && (msg.includes('cao') || msg.includes('thấp') || msg.includes('nhiều') || msg.includes('ít'))) &&
+      msg.includes('bài tập');
+
+    const isLessonScoreQuery =
+      !msg.includes('dạng') &&
+      (msg.includes('bài tập') || msg.includes('bài luyện tập')) &&
+      (msg.includes('điểm') && (msg.includes('cao') || msg.includes('thấp') || msg.includes('nhiều') || msg.includes('ít')));
+
+    // Query for specific lesson with highest/lowest score
+    if (isLessonScoreQuery) {
+      const isHighest = msg.includes('cao') || msg.includes('nhiều') || msg.includes('tốt');
+
+      const attempt = await this.prisma.attempt.findFirst({
+        where: {
+          userId,
+          isCompleted: true,
+          lesson: {
+            topic: {
+              grade: stats.grade,  // ✅ FILTER BY USER'S GRADE
+            },
+          },
+        },
+        include: {
+          lesson: {
+            include: {
+              topic: { select: { title: true } },
+            },
+          },
+        },
+        orderBy: {
+          totalScore: isHighest ? 'desc' : 'asc',
+        },
+      });
+
+      if (attempt) {
+        contextData += `\n${isHighest ? 'Highest' : 'Lowest'} Scoring Lesson:\n`;
+        contextData += `- Lesson: ${attempt.lesson.title}\n`;
+        contextData += `- Unit: ${attempt.lesson.topic.title}\n`;
+        contextData += `- Score: ${attempt.totalScore} points\n`;
+      }
+    }
+    // Query for exercise type with highest/lowest avg score
+    else if (isTypeScoreQuery) {
+      // Get all attempts with exercise type info
+      const attempts = await this.prisma.attempt.findMany({
+        where: {
+          userId,
+          isCompleted: true,
+        },
+        include: {
+          lesson: {
+            include: {
+              exercises: {
+                select: { type: true },
+              },
+            },
+          },
+        },
+      });
+
+      // Group by exercise type and calculate average scores
+      const typeScores = new Map<string, { total: number; count: number }>();
+
+      attempts.forEach((attempt) => {
+        attempt.lesson.exercises.forEach((ex) => {
+          const type = ex.type;
+          const current = typeScores.get(type) || { total: 0, count: 0 };
+          typeScores.set(type, {
+            total: current.total + attempt.totalScore,
+            count: current.count + 1,
+          });
+        });
+      });
+
+      // Calculate averages and sort
+      const avgScores = Array.from(typeScores.entries()).map(([type, data]) => ({
+        type,
+        avgScore: data.total / data.count,
+        count: data.count,
+      }));
+
+      avgScores.sort((a, b) => b.avgScore - a.avgScore);
+
+      if (avgScores.length > 0) {
+        const highest = avgScores[0];
+        const lowest = avgScores[avgScores.length - 1];
+
+        contextData += `\nExercise Performance by Type:\n`;
+        contextData += `- Highest: ${highest.type} (avg ${highest.avgScore.toFixed(1)} points, ${highest.count} attempts)\n`;
+        if (avgScores.length > 1) {
+          contextData += `- Lowest: ${lowest.type} (avg ${lowest.avgScore.toFixed(1)} points, ${lowest.count} attempts)\n`;
+        }
+      }
     }
 
     // Unit/Topic count query
@@ -755,7 +959,7 @@ SYSTEM QUERY RULES:
         const topics = await this.getTopicsByGrade(stats.grade);
         contextData += `\nAvailable units for grade ${stats.grade}:\n`;
         topics.forEach((t) => {
-          contextData += `- ${t.title}: ${t.description || 'No description'} (${t.lessonCount} lessons)\n`;
+          contextData += `- ${t.title}: ${t.description || 'No description'} (${t.lessonCount} exercises)\n`;
         });
       }
     }
@@ -824,6 +1028,8 @@ SYSTEM QUERY RULES:
       const word = this.extractWord(dto.message);
       translation = await this.translateWord(word);
       aiResponse = this.formatTranslationResponse(translation);
+      // DON'T return translation object - it causes duplicate display in UI
+      translation = undefined;
     }
     // 3. General conversation
     else {
@@ -958,8 +1164,8 @@ Input: "cái nồi" → Output: "pot"`;
     translation: ChatResponseDto['translation'],
   ): string {
     if (!translation) return '';
-    // Format: "word: meaning" (e.g., "cat: con mèo")
-    return `${translation.word}: ${translation.meaning}`;
+    // Just return the meaning - AI will format it naturally
+    return translation.meaning;
   }
 
   private async callAI(
