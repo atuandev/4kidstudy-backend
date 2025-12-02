@@ -35,14 +35,9 @@ export class AuthService {
         passwordHash: hashedPassword,
         dob: registerDto.dob,
         gender: registerDto.gender,
+        isVerified: false,
       },
     });
-
-    const tokens = await this.generateTokens(
-      newUser.id,
-      newUser.email,
-      newUser.role,
-    );
 
     return {
       user: {
@@ -53,8 +48,8 @@ export class AuthService {
         avatarUrl: newUser.avatarUrl || undefined,
         dob: newUser.dob || undefined,
         gender: newUser.gender,
+        isVerified: newUser.isVerified ?? false,
       },
-      tokens,
     };
   }
 
@@ -70,6 +65,12 @@ export class AuthService {
     const passwordMatches = await bcrypt.compare(password, user.passwordHash);
     if (!passwordMatches) {
       throw new ForbiddenException('Access Denied');
+    }
+
+    if (!user.isVerified) {
+      throw new ForbiddenException(
+        'Email not verified. Please verify your email before logging in.',
+      );
     }
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
@@ -88,7 +89,7 @@ export class AuthService {
     };
   }
 
-  async refreshTokens(userId: number, refreshToken: string) {
+  async refreshTokens(userId: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
