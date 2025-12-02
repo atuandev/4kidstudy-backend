@@ -507,7 +507,7 @@ export class FlashcardService {
       });
 
       // Create flashcards in transaction with extended timeout for serverless
-      return this.prisma.$transaction(
+      const createdFlashcards = await this.prisma.$transaction(
         async (tx) => {
           const createdFlashcards = [];
           for (const flashcard of flashcards) {
@@ -532,6 +532,16 @@ export class FlashcardService {
           timeout: 15000, // 15 seconds
         },
       );
+
+      // Return lightweight summary instead of full data to avoid large response
+      return {
+        imported: createdFlashcards.length,
+        flashcards: createdFlashcards.map((fc) => ({
+          id: fc.id,
+          term: fc.term,
+          order: fc.order,
+        })),
+      };
     } catch (error: unknown) {
       if (
         error instanceof NotFoundException ||

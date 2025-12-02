@@ -1037,9 +1037,9 @@ export class ExerciseService {
       };
 
       // Create exercises and options in transaction with extended timeout for serverless
-      return this.prisma.$transaction(
+      const createdExercises = await this.prisma.$transaction(
         async (tx) => {
-          const createdExercises = [];
+          const exercises = [];
 
           for (let index = 0; index < data.length; index++) {
             const row = data[index];
@@ -1224,16 +1224,26 @@ export class ExerciseService {
             }
             // PRONUNCIATION type: no options needed
 
-            createdExercises.push(exercise);
+            exercises.push(exercise);
           }
 
-          return createdExercises;
+          return exercises;
         },
         {
           maxWait: 15000, // 15 seconds
           timeout: 15000, // 15 seconds
         },
       );
+
+      // Return lightweight summary to avoid large response
+      return {
+        imported: createdExercises.length,
+        exercises: createdExercises.map((ex) => ({
+          id: ex.id,
+          type: ex.type,
+          order: ex.order,
+        })),
+      };
     } catch (error: unknown) {
       if (
         error instanceof NotFoundException ||

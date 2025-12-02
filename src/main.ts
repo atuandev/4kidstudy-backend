@@ -14,7 +14,11 @@ async function bootstrap() {
     }),
   );
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: [
+      'http://localhost:3000',
+      'https://4kidstudy-frontend.vercel.app',
+    ].filter(Boolean),
+    credentials: true,
   });
 
   // Swagger Configuration

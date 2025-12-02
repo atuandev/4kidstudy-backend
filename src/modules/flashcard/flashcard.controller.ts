@@ -13,6 +13,7 @@ import {
   UseInterceptors,
   UploadedFile,
   UploadedFiles,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   FileInterceptor,
@@ -132,7 +133,7 @@ export class FlashcardController {
     },
   ) {
     if (!files?.excelFile || files.excelFile.length === 0) {
-      throw new Error('No Excel file uploaded');
+      throw new BadRequestException('No Excel file uploaded');
     }
 
     const excelFile = files.excelFile[0];
