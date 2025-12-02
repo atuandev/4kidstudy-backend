@@ -7,6 +7,7 @@ import {
   RefreshTokenDto,
   AuthResponseDto,
   TokensResponseDto,
+  RegisterResponseDto,
 } from './dto/index';
 
 @ApiTags('auth')
@@ -19,8 +20,8 @@ export class AuthController {
   @ApiBody({ type: RegisterDto })
   @ApiResponse({
     status: 201,
-    description: 'User registered successfully',
-    type: AuthResponseDto,
+    description: 'User registered successfully. Email verification required.',
+    type: RegisterResponseDto,
   })
   @ApiResponse({
     status: 400,
@@ -30,7 +31,9 @@ export class AuthController {
     status: 409,
     description: 'Conflict - email already exists',
   })
-  async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
+  async register(
+    @Body() registerDto: RegisterDto,
+  ): Promise<RegisterResponseDto> {
     return this.authService.register(registerDto);
   }
 
@@ -64,9 +67,7 @@ export class AuthController {
     status: 403,
     description: 'Forbidden - invalid refresh token',
   })
-  async refreshTokens(
-    @Body() refreshTokenDto: RefreshTokenDto,
-  ): Promise<TokensResponseDto> {
-    return this.authService.refreshTokens(1, refreshTokenDto.refreshToken);
+  async refreshTokens(): Promise<TokensResponseDto> {
+    return this.authService.refreshTokens(1);
   }
 }
