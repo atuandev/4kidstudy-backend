@@ -27,7 +27,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { UserProfileDto, UserStatsDto, ResetPasswordDto, UpdateProfileDto } from './dto/index';
+import { UserProfileDto, UserStatsDto, ResetPasswordDto, UpdateProfileDto, ChangePasswordDto } from './dto/index';
 import { UpdateUserStatusDto } from './dto/req/update-user-status.dto';
 
 @ApiTags('users')
@@ -235,5 +235,44 @@ export class UserController {
     @UploadedFile() avatar?: Express.Multer.File,
   ): Promise<UserProfileDto> {
     return this.userService.updateProfile(req.user.id, updateProfileDto, avatar);
+  }
+
+  @Post('me/change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Change current user password',
+    description: 'Change password for the currently logged-in user'
+  })
+  @ApiBody({ type: ChangePasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password changed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Đổi mật khẩu thành công' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid current password or new password same as old',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - not logged in',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  async changePassword(
+    @Req() req: any,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.userService.changePassword(req.user.id, changePasswordDto);
   }
 }

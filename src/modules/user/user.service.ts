@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
-import { UpdateProfileDto } from './dto/index';
+import { UpdateProfileDto, ChangePasswordDto } from './dto/index';
 
 // Configure Cloudinary
 cloudinary.config({
@@ -213,6 +213,61 @@ export class UserService {
     return {
       success: true,
       message: 'Đặt lại mật khẩu thành công',
+    };
+  }
+
+  async changePassword(userId: number, changePasswordDto: ChangePasswordDto) {
+    // Find user by ID
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    if (!user.passwordHash) {
+      throw new BadRequestException('Không thể xác thực người dùng');
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(
+      changePasswordDto.currentPassword,
+      user.passwordHash,
+    );
+
+    if (!isPasswordValid) {
+      throw new BadRequestException('Mật khẩu hiện tại không đúng');
+    }
+
+    // Check if new password is same as current password
+    const isSamePassword = await bcrypt.compare(
+      changePasswordDto.newPassword,
+      user.passwordHash,
+    );
+
+    if (isSamePassword) {
+      throw new BadRequestException(
+        'Mật khẩu mới không được trùng với mật khẩu hiện tại',
+      );
+    }
+
+    // Hash new password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(
+      changePasswordDto.newPassword,
+      saltRounds,
+    );
+
+    // Update password
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: hashedPassword },
+    });
+
+    return {
+      success: true,
+      message: 'Đổi mật khẩu thành công',
     };
   }
 
