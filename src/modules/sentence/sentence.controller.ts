@@ -12,6 +12,7 @@ import {
   HttpCode,
   UseInterceptors,
   UploadedFiles,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -397,7 +398,7 @@ export class SentenceController {
     },
   ) {
     if (!files.excel || files.excel.length === 0) {
-      throw new Error('Excel file is required');
+      throw new BadRequestException('Excel file is required');
     }
 
     const excelFile = files.excel[0];

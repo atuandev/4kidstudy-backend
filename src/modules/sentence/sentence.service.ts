@@ -457,7 +457,11 @@ export class SentenceService {
     assetFiles: Express.Multer.File[] = [],
   ): Promise<{
     created: number;
-    sentenceImages: SentenceImageWithSentences[];
+    sentenceImages: Array<{
+      id: number;
+      order: number;
+      sentenceCount: number;
+    }>;
   }> {
     // Check if topic exists
     const topic = await this.prisma.topic.findUnique({
@@ -681,9 +685,14 @@ export class SentenceService {
         `✅ Import completed: ${createdSentenceImages.length} SentenceImages created`,
       );
 
+      // Return lightweight summary to avoid large response
       return {
         created: createdSentenceImages.length,
-        sentenceImages: createdSentenceImages,
+        sentenceImages: createdSentenceImages.map((img) => ({
+          id: img.id,
+          order: img.order,
+          sentenceCount: img.sentences.length,
+        })),
       };
     } catch (error) {
       console.error('❌ Import failed:', error);
