@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UserService {
@@ -167,6 +168,37 @@ export class UserService {
       dob: updated.dob || undefined,
       grade: updated.grade ?? 'GRADE_1',
       isVerified: updated.isVerified ?? false,
+    };
+  }
+
+  async resetPassword(email: string, newPassword: string) {
+    // Find user by email
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng với email này');
+    }
+
+    // Check if user is verified
+    if (!user.isVerified) {
+      throw new BadRequestException('Email chưa được xác thực');
+    }
+
+    // Hash new password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password
+    await this.prisma.user.update({
+      where: { email },
+      data: { passwordHash: hashedPassword },
+    });
+
+    return {
+      success: true,
+      message: 'Đặt lại mật khẩu thành công',
     };
   }
 }

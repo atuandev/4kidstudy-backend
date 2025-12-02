@@ -8,6 +8,9 @@ import {
   Query,
   Put,
   Body,
+  Post,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -18,7 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { UserProfileDto, UserStatsDto } from './dto/index';
+import { UserProfileDto, UserStatsDto, ResetPasswordDto } from './dto/index';
 import { UpdateUserStatusDto } from './dto/req/update-user-status.dto';
 import { ApiQuery, ApiBody } from '@nestjs/swagger';
 
@@ -152,5 +155,38 @@ export class UserController {
     @Body() body: UpdateUserStatusDto,
   ): Promise<UserProfileDto> {
     return this.userService.updateStatus(id, body.isActive);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Reset user password',
+    description: 'Reset password for a user after email verification (OTP verified)'
+  })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Đặt lại mật khẩu thành công' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Email not verified',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.userService.resetPassword(
+      resetPasswordDto.email,
+      resetPasswordDto.newPassword,
+    );
   }
 }
