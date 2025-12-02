@@ -17,7 +17,6 @@ async function bootstrap() {
     origin: [
       'http://localhost:3000',
       'https://4kidstudy-frontend.vercel.app',
-      process.env.FRONTEND_URL,
     ].filter(Boolean),
     credentials: true,
   });
