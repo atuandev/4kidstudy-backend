@@ -7,7 +7,7 @@ import {
   IsOptional,
   IsEnum,
 } from 'class-validator';
-import { Gender } from '@prisma/client';
+import { Gender, GradeLevel } from '@prisma/client';
 import { Transform } from 'class-transformer';
 
 export class RegisterDto {
@@ -52,4 +52,13 @@ export class RegisterDto {
   @IsEnum(Gender)
   @IsOptional()
   gender?: Gender;
+
+  @ApiPropertyOptional({
+    description: 'User grade level',
+    enum: GradeLevel,
+    example: GradeLevel.GRADE_1,
+  })
+  @IsEnum(GradeLevel)
+  @IsOptional()
+  grade?: GradeLevel;
 }

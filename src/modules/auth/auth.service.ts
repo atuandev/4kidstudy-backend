@@ -35,6 +35,7 @@ export class AuthService {
         passwordHash: hashedPassword,
         dob: registerDto.dob,
         gender: registerDto.gender,
+        grade: registerDto.grade,
         isVerified: false,
       },
     });
