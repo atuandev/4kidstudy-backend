@@ -580,8 +580,10 @@ export class SentenceService {
       // Step 3: Create SentenceImage and Sentence records in transaction
       const createdSentenceImages: SentenceImageWithSentences[] = [];
 
-      await this.prisma.$transaction(async (tx) => {
-        for (const [index, row] of data.entries()) {
+      // Use longer timeout for serverless environments (Vercel)
+      await this.prisma.$transaction(
+        async (tx) => {
+          for (const [index, row] of data.entries()) {
           const rowNum = index + 1;
 
           // Get SentenceImage fields
@@ -666,7 +668,12 @@ export class SentenceService {
             sentences,
           });
         }
-      });
+        },
+        {
+          maxWait: 15000, // 15 seconds
+          timeout: 15000, // 15 seconds
+        },
+      );
 
       console.log(
         `✅ Import completed: ${createdSentenceImages.length} SentenceImages created`,

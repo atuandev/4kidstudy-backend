@@ -506,26 +506,32 @@ export class FlashcardService {
         };
       });
 
-      // Create flashcards in transaction
-      return this.prisma.$transaction(async (tx) => {
-        const createdFlashcards = [];
-        for (const flashcard of flashcards) {
-          const created = await tx.flashcard.create({
-            data: flashcard,
-            include: {
-              topic: {
-                select: {
-                  id: true,
-                  title: true,
-                  grade: true,
+      // Create flashcards in transaction with extended timeout for serverless
+      return this.prisma.$transaction(
+        async (tx) => {
+          const createdFlashcards = [];
+          for (const flashcard of flashcards) {
+            const created = await tx.flashcard.create({
+              data: flashcard,
+              include: {
+                topic: {
+                  select: {
+                    id: true,
+                    title: true,
+                    grade: true,
+                  },
                 },
               },
-            },
-          });
-          createdFlashcards.push(created);
-        }
-        return createdFlashcards;
-      });
+            });
+            createdFlashcards.push(created);
+          }
+          return createdFlashcards;
+        },
+        {
+          maxWait: 15000, // 15 seconds
+          timeout: 15000, // 15 seconds
+        },
+      );
     } catch (error: unknown) {
       if (
         error instanceof NotFoundException ||
