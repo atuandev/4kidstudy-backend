@@ -306,18 +306,18 @@ SYSTEM QUERY RULES:
       /unit .+ (học về|về) (cái )?gì/i,
       /unit .+ (có )?(là )?gì/i,
       /unit .+ (có|gồm) (những )?câu (nào|gì)/i,
-      /unit .+ (có )?mấy câu/i,  // "unit 9 có mấy câu"
+      /unit .+ (có )?mấy câu/i, // "unit 9 có mấy câu"
       /unit .+ (có|gồm) (những )?sentence/i,
       /unit .+ (có|gồm) (những )?(từ vựng|từ|flashcard|vocabulary)/i,
-      /unit .+ (có )?mấy (từ vựng|từ|flashcard)/i,  // "unit 9 có mấy từ vựng"
-      /unit .+ (có )?mấy bài (tập|luyện tập)/i,  // "unit 9 có mấy bài tập"
-      /(hoàn thành|đã làm|đã học) mấy bài (tập|luyện tập).*(unit|topic)/i,  // "hoàn thành mấy bài tập trong unit 10"
-      /còn mấy bài (tập|luyện tập).*(chưa|không)/i,  // "còn mấy bài tập chưa hoàn thành"
+      /unit .+ (có )?mấy (từ vựng|từ|flashcard)/i, // "unit 9 có mấy từ vựng"
+      /unit .+ (có )?mấy bài (tập|luyện tập)/i, // "unit 9 có mấy bài tập"
+      /(hoàn thành|đã làm|đã học) mấy bài (tập|luyện tập).*(unit|topic)/i, // "hoàn thành mấy bài tập trong unit 10"
+      /còn mấy bài (tập|luyện tập).*(chưa|không)/i, // "còn mấy bài tập chưa hoàn thành"
 
       // Exercise performance/score queries
-      /(dạng )?bài (tập|luyện tập) nào.*(điểm|cao|thấp|tốt|kém)/i,  // "bài tập nào tôi đạt điểm cao nhất"
-      /(dạng )?bài (tập|luyện tập).*(nhiều|ít) điểm/i,  // "dạng bài tập nào tôi đạt nhiều điểm nhất"
-      /đạt điểm.*bài (tập|luyện tập)/i,  // "đạt điểm cao nhất ở bài tập nào"
+      /(dạng )?bài (tập|luyện tập) nào.*(điểm|cao|thấp|tốt|kém)/i, // "bài tập nào tôi đạt điểm cao nhất"
+      /(dạng )?bài (tập|luyện tập).*(nhiều|ít) điểm/i, // "dạng bài tập nào tôi đạt nhiều điểm nhất"
+      /đạt điểm.*bài (tập|luyện tập)/i, // "đạt điểm cao nhất ở bài tập nào"
 
       /(các )?câu (trong|ở) unit/i,
       /sentences? (trong|ở|của) unit/i,
@@ -340,7 +340,7 @@ SYSTEM QUERY RULES:
       /tuổi (tôi|mình)/i,
       /lớp (tôi|mình)/i,
 
-      // English patterns - Learning progress  
+      // English patterns - Learning progress
       /how many (words|sentences) (have I )?learned/i,
       /how many (words|sentences) mastered/i,
       /my (learning )?progress/i,
@@ -372,11 +372,14 @@ SYSTEM QUERY RULES:
   /**
    * Fetch relevant system data based on user query
    */
-  private async fetchSystemData(userId: number, message: string): Promise<string> {
+  private async fetchSystemData(
+    userId: number,
+    message: string,
+  ): Promise<string> {
     const msg = message.toLowerCase();
     let contextData = '';
 
-    // ALWAYS include user's name for personalization  
+    // ALWAYS include user's name for personalization
     const userForName = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { name: true },
@@ -431,9 +434,12 @@ SYSTEM QUERY RULES:
 
     // General learning progress query (without unit specification)
     if (
-      (msg.includes('học') &&
-        (msg.includes('bao nhiêu') || msg.includes('how many')) &&
-        (msg.includes('từ') || msg.includes('câu') || msg.includes('word') || msg.includes('sentence'))) &&
+      msg.includes('học') &&
+      (msg.includes('bao nhiêu') || msg.includes('how many')) &&
+      (msg.includes('từ') ||
+        msg.includes('câu') ||
+        msg.includes('word') ||
+        msg.includes('sentence')) &&
       !msg.includes('unit')
     ) {
       // Query total learning progress across all topics in user's grade
@@ -507,8 +513,12 @@ SYSTEM QUERY RULES:
     if (
       msg.includes('bao nhiêu bài') ||
       msg.includes('how many lessons') ||
-      (msg.includes('tiến độ') && !msg.includes('từ') && !msg.includes('câu')) ||
-      (msg.includes('progress') && !msg.includes('word') && !msg.includes('sentence'))
+      (msg.includes('tiến độ') &&
+        !msg.includes('từ') &&
+        !msg.includes('câu')) ||
+      (msg.includes('progress') &&
+        !msg.includes('word') &&
+        !msg.includes('sentence'))
     ) {
       const progress = await this.getUserLessonProgress(userId);
       contextData += `Completed exercises: ${progress.completedLessons} out of ${progress.totalLessons}\n`;
@@ -518,7 +528,9 @@ SYSTEM QUERY RULES:
     // Exercise completion in specific unit
     const exerciseMatch = msg.match(/unit (\d+|[a-z]+)/i);
     const isExerciseQuery =
-      (msg.includes('hoàn thành') || msg.includes('đã làm') || msg.includes('còn')) &&
+      (msg.includes('hoàn thành') ||
+        msg.includes('đã làm') ||
+        msg.includes('còn')) &&
       (msg.includes('bài tập') || msg.includes('bài luyện tập'));
 
     if (exerciseMatch && isExerciseQuery) {
@@ -570,10 +582,13 @@ SYSTEM QUERY RULES:
         },
       });
 
-      const totalExercises = allTopics.reduce((sum, t) => sum + t.lessons.length, 0);
+      const totalExercises = allTopics.reduce(
+        (sum, t) => sum + t.lessons.length,
+        0,
+      );
 
       // Count all completed exercises
-      const topicIds = allTopics.map(t => t.id);
+      const topicIds = allTopics.map((t) => t.id);
       const completedCount = await this.prisma.attempt.count({
         where: {
           userId,
@@ -593,17 +608,26 @@ SYSTEM QUERY RULES:
     // Exercise performance/score queries
     const isTypeScoreQuery =
       msg.includes('dạng') &&
-      (msg.includes('điểm') && (msg.includes('cao') || msg.includes('thấp') || msg.includes('nhiều') || msg.includes('ít'))) &&
+      msg.includes('điểm') &&
+      (msg.includes('cao') ||
+        msg.includes('thấp') ||
+        msg.includes('nhiều') ||
+        msg.includes('ít')) &&
       msg.includes('bài tập');
 
     const isLessonScoreQuery =
       !msg.includes('dạng') &&
       (msg.includes('bài tập') || msg.includes('bài luyện tập')) &&
-      (msg.includes('điểm') && (msg.includes('cao') || msg.includes('thấp') || msg.includes('nhiều') || msg.includes('ít')));
+      msg.includes('điểm') &&
+      (msg.includes('cao') ||
+        msg.includes('thấp') ||
+        msg.includes('nhiều') ||
+        msg.includes('ít'));
 
     // Query for specific lesson with highest/lowest score
     if (isLessonScoreQuery) {
-      const isHighest = msg.includes('cao') || msg.includes('nhiều') || msg.includes('tốt');
+      const isHighest =
+        msg.includes('cao') || msg.includes('nhiều') || msg.includes('tốt');
 
       const attempt = await this.prisma.attempt.findFirst({
         where: {
@@ -611,7 +635,7 @@ SYSTEM QUERY RULES:
           isCompleted: true,
           lesson: {
             topic: {
-              grade: stats.grade,  // ✅ FILTER BY USER'S GRADE
+              grade: stats.grade, // ✅ FILTER BY USER'S GRADE
             },
           },
         },
@@ -668,11 +692,13 @@ SYSTEM QUERY RULES:
       });
 
       // Calculate averages and sort
-      const avgScores = Array.from(typeScores.entries()).map(([type, data]) => ({
-        type,
-        avgScore: data.total / data.count,
-        count: data.count,
-      }));
+      const avgScores = Array.from(typeScores.entries()).map(
+        ([type, data]) => ({
+          type,
+          avgScore: data.total / data.count,
+          count: data.count,
+        }),
+      );
 
       avgScores.sort((a, b) => b.avgScore - a.avgScore);
 
@@ -690,8 +716,12 @@ SYSTEM QUERY RULES:
 
     // Unit/Topic count query
     if (
-      (msg.includes('bao nhiêu') && (msg.includes('unit') || msg.includes('topic') || msg.includes('chủ đề'))) ||
-      (msg.includes('how many') && (msg.includes('unit') || msg.includes('topic')))
+      (msg.includes('bao nhiêu') &&
+        (msg.includes('unit') ||
+          msg.includes('topic') ||
+          msg.includes('chủ đề'))) ||
+      (msg.includes('how many') &&
+        (msg.includes('unit') || msg.includes('topic')))
     ) {
       const topics = await this.prisma.topic.findMany({
         where: {
@@ -746,7 +776,10 @@ SYSTEM QUERY RULES:
 
           if (isLearnedQuery) {
             // Show user's learning progress
-            const progress = await this.getUserProgressByTopic(userId, topic.id);
+            const progress = await this.getUserProgressByTopic(
+              userId,
+              topic.id,
+            );
             contextData += `\nLearning Progress for Unit ${topic.title}:\n`;
             contextData += `- Learned ${progress.totalFlashcards} words\n`;
             contextData += `- Mastered ${progress.masteredFlashcards} words\n`;
@@ -811,7 +844,10 @@ SYSTEM QUERY RULES:
 
           if (isLearnedQuery) {
             // Show user's learning progress for sentences
-            const progress = await this.getUserProgressByTopic(userId, topic.id);
+            const progress = await this.getUserProgressByTopic(
+              userId,
+              topic.id,
+            );
             contextData += `\nSentence Learning Progress for Unit ${topic.title}:\n`;
             contextData += `- Learned ${progress.totalSentences} sentences\n`;
             contextData += `- Mastered ${progress.masteredSentences} sentences\n`;
@@ -857,10 +893,21 @@ SYSTEM QUERY RULES:
     }
 
     // Topic/Unit query
-    if (msg.includes('unit') || msg.includes('topic') || msg.includes('chủ đề')) {
+    if (
+      msg.includes('unit') ||
+      msg.includes('topic') ||
+      msg.includes('chủ đề')
+    ) {
       // Check if asking about learned/unlearned units
-      const isLearnedQuery = msg.includes('đã học') || msg.includes('learned') || msg.includes('completed');
-      const isUnlearnedQuery = msg.includes('chưa học') || msg.includes('haven\'t') || msg.includes('not learned') || msg.includes('incomplete');
+      const isLearnedQuery =
+        msg.includes('đã học') ||
+        msg.includes('learned') ||
+        msg.includes('completed');
+      const isUnlearnedQuery =
+        msg.includes('chưa học') ||
+        msg.includes("haven't") ||
+        msg.includes('not learned') ||
+        msg.includes('incomplete');
 
       if (isLearnedQuery || isUnlearnedQuery) {
         // Get all topics in user's grade
@@ -893,37 +940,40 @@ SYSTEM QUERY RULES:
           const sentences = sentenceImages.flatMap((si) => si.sentences);
 
           // Get user's mastered items
-          const masteredFlashcards = await this.prisma.learningProgress.findMany({
-            where: {
-              userId,
-              contentType: 'FLASHCARD',
-              isMastered: true,
-              flashcardId: { in: flashcards.map((f) => f.id) },
-            },
-            select: { flashcardId: true },
-          });
+          const masteredFlashcards =
+            await this.prisma.learningProgress.findMany({
+              where: {
+                userId,
+                contentType: 'FLASHCARD',
+                isMastered: true,
+                flashcardId: { in: flashcards.map((f) => f.id) },
+              },
+              select: { flashcardId: true },
+            });
 
-          const masteredSentences = await this.prisma.learningProgress.findMany({
-            where: {
-              userId,
-              contentType: 'SENTENCE',
-              isMastered: true,
-              sentenceId: { in: sentences.map((s) => s.id) },
+          const masteredSentences = await this.prisma.learningProgress.findMany(
+            {
+              where: {
+                userId,
+                contentType: 'SENTENCE',
+                isMastered: true,
+                sentenceId: { in: sentences.map((s) => s.id) },
+              },
+              select: { sentenceId: true },
             },
-            select: { sentenceId: true },
-          });
+          );
 
           // Topic is learned only if ALL flashcards AND ALL sentences are mastered
           const allFlashcardsMastered =
             flashcards.length > 0 &&
             flashcards.every((f) =>
-              masteredFlashcards.some((mf) => mf.flashcardId === f.id)
+              masteredFlashcards.some((mf) => mf.flashcardId === f.id),
             );
 
           const allSentencesMastered =
             sentences.length > 0 &&
             sentences.every((s) =>
-              masteredSentences.some((ms) => ms.sentenceId === s.id)
+              masteredSentences.some((ms) => ms.sentenceId === s.id),
             );
 
           if (allFlashcardsMastered && allSentencesMastered) {
@@ -932,7 +982,9 @@ SYSTEM QUERY RULES:
         }
 
         if (isLearnedQuery) {
-          const learnedTopics = allTopics.filter((t) => learnedTopicIds.includes(t.id));
+          const learnedTopics = allTopics.filter((t) =>
+            learnedTopicIds.includes(t.id),
+          );
           if (learnedTopics.length > 0) {
             contextData += `\nUnits you have learned (${learnedTopics.length}):\n`;
             learnedTopics.forEach((t, i) => {
@@ -944,7 +996,9 @@ SYSTEM QUERY RULES:
         }
 
         if (isUnlearnedQuery) {
-          const unlearnedTopics = allTopics.filter((t) => !learnedTopicIds.includes(t.id));
+          const unlearnedTopics = allTopics.filter(
+            (t) => !learnedTopicIds.includes(t.id),
+          );
           if (unlearnedTopics.length > 0) {
             contextData += `\nUnits you haven't learned yet (${unlearnedTopics.length}):\n`;
             unlearnedTopics.forEach((t, i) => {
@@ -1055,16 +1109,30 @@ SYSTEM QUERY RULES:
 
     // EXCLUDE personal info queries (must check FIRST)
     const personalKeywords = [
-      'tên tôi', 'tên mình', 'my name',
-      'tuổi tôi', 'tuổi mình', 'my age',
-      'lớp tôi', 'lớp mình', 'my grade',
-      'xp tôi', 'xp mình', 'my xp',
-      'streak tôi', 'streak mình', 'my streak',
-      'học được', 'đã học', 'learned', 'mastered',
-      'bao nhiêu', 'how many',
+      'tên tôi',
+      'tên mình',
+      'my name',
+      'tuổi tôi',
+      'tuổi mình',
+      'my age',
+      'lớp tôi',
+      'lớp mình',
+      'my grade',
+      'xp tôi',
+      'xp mình',
+      'my xp',
+      'streak tôi',
+      'streak mình',
+      'my streak',
+      'học được',
+      'đã học',
+      'learned',
+      'mastered',
+      'bao nhiêu',
+      'how many',
     ];
 
-    if (personalKeywords.some(keyword => msg.includes(keyword))) {
+    if (personalKeywords.some((keyword) => msg.includes(keyword))) {
       return false; // NOT a translation request
     }
 
@@ -1074,8 +1142,8 @@ SYSTEM QUERY RULES:
       /nghĩa .+/i,
       /dịch .+/i,
       /translate .+/i,
-      /.+ nghĩa là gì/i,  // Safe now because personal keywords filtered
-      /.+ là gì/i,        // Safe now because personal keywords filtered
+      /.+ nghĩa là gì/i, // Safe now because personal keywords filtered
+      /.+ là gì/i, // Safe now because personal keywords filtered
       /^[a-zA-Z]+$/i, // Single English word
       /^[\u00C0-\u1EF9\s]+$/i, // Vietnamese word(s)
     ];

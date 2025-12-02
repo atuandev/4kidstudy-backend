@@ -584,90 +584,92 @@ export class SentenceService {
       await this.prisma.$transaction(
         async (tx) => {
           for (const [index, row] of data.entries()) {
-          const rowNum = index + 1;
+            const rowNum = index + 1;
 
-          // Get SentenceImage fields
-          const imageUrl = mapAssetUrl(row.imgSentence);
-          const audioUrl = mapAssetUrl(row.audioImg);
+            // Get SentenceImage fields
+            const imageUrl = mapAssetUrl(row.imgSentence);
+            const audioUrl = mapAssetUrl(row.audioImg);
 
-          if (!imageUrl) {
-            console.warn(`⚠️  Row ${rowNum}: Missing imgSentence, skipping...`);
-            continue;
-          }
+            if (!imageUrl) {
+              console.warn(
+                `⚠️  Row ${rowNum}: Missing imgSentence, skipping...`,
+              );
+              continue;
+            }
 
-          // Create SentenceImage
-          const sentenceImage = await tx.sentenceImage.create({
-            data: {
-              topicId,
-              imageUrl,
-              audioUrl,
-              order: startOrder + index,
-              isActive: true,
-            },
-            include: {
-              topic: true,
-            },
-          });
+            // Create SentenceImage
+            const sentenceImage = await tx.sentenceImage.create({
+              data: {
+                topicId,
+                imageUrl,
+                audioUrl,
+                order: startOrder + index,
+                isActive: true,
+              },
+              include: {
+                topic: true,
+              },
+            });
 
-          // Collect sentences (sen01-04)
-          const sentencesData: Array<{
-            text: string;
-            meaningVi: string | null;
-            audioUrl: string | null;
-            order: number;
-          }> = [];
+            // Collect sentences (sen01-04)
+            const sentencesData: Array<{
+              text: string;
+              meaningVi: string | null;
+              audioUrl: string | null;
+              order: number;
+            }> = [];
 
-          for (let i = 1; i <= 4; i++) {
-            const senKey = `sen0${i}`;
-            const senViKey = `sen0${i}Vi`;
-            const senAudioKey = `sen0${i}audio`;
+            for (let i = 1; i <= 4; i++) {
+              const senKey = `sen0${i}`;
+              const senViKey = `sen0${i}Vi`;
+              const senAudioKey = `sen0${i}audio`;
 
-            const text = normalizeValue(
-              row[senKey] as string | number | undefined,
+              const text = normalizeValue(
+                row[senKey] as string | number | undefined,
+              );
+              if (!text) continue; // Skip empty sentence
+
+              const meaningVi =
+                normalizeValue(row[senViKey] as string | number | undefined) ||
+                null;
+              const audioUrl = mapAssetUrl(
+                row[senAudioKey] as string | number | undefined,
+              );
+
+              sentencesData.push({
+                text,
+                meaningVi,
+                audioUrl,
+                order: i - 1,
+              });
+            }
+
+            console.log(
+              `📝 Row ${rowNum}: Creating SentenceImage with ${sentencesData.length} sentences`,
             );
-            if (!text) continue; // Skip empty sentence
 
-            const meaningVi =
-              normalizeValue(row[senViKey] as string | number | undefined) ||
-              null;
-            const audioUrl = mapAssetUrl(
-              row[senAudioKey] as string | number | undefined,
+            // Create all sentences for this SentenceImage
+            const sentences = await Promise.all(
+              sentencesData.map((sentenceData) =>
+                tx.sentence.create({
+                  data: {
+                    sentenceImageId: sentenceImage.id,
+                    text: sentenceData.text,
+                    meaningVi: sentenceData.meaningVi,
+                    hintVi: null,
+                    audioUrl: sentenceData.audioUrl,
+                    order: sentenceData.order,
+                    isActive: true,
+                  },
+                }),
+              ),
             );
 
-            sentencesData.push({
-              text,
-              meaningVi,
-              audioUrl,
-              order: i - 1,
+            createdSentenceImages.push({
+              ...sentenceImage,
+              sentences,
             });
           }
-
-          console.log(
-            `📝 Row ${rowNum}: Creating SentenceImage with ${sentencesData.length} sentences`,
-          );
-
-          // Create all sentences for this SentenceImage
-          const sentences = await Promise.all(
-            sentencesData.map((sentenceData) =>
-              tx.sentence.create({
-                data: {
-                  sentenceImageId: sentenceImage.id,
-                  text: sentenceData.text,
-                  meaningVi: sentenceData.meaningVi,
-                  hintVi: null,
-                  audioUrl: sentenceData.audioUrl,
-                  order: sentenceData.order,
-                  isActive: true,
-                },
-              }),
-            ),
-          );
-
-          createdSentenceImages.push({
-            ...sentenceImage,
-            sentences,
-          });
-        }
         },
         {
           maxWait: 15000, // 15 seconds

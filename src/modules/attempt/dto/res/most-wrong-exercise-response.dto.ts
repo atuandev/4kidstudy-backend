@@ -9,5 +9,3 @@ export class MostWrongExerciseStatsDto {
   secondWrongCount: number;
   totalWrongCount: number;
 }
-
-

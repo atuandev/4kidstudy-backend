@@ -27,7 +27,13 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { UserProfileDto, UserStatsDto, ResetPasswordDto, UpdateProfileDto, ChangePasswordDto } from './dto/index';
+import {
+  UserProfileDto,
+  UserStatsDto,
+  ResetPasswordDto,
+  UpdateProfileDto,
+  ChangePasswordDto,
+} from './dto/index';
 import { UpdateUserStatusDto } from './dto/req/update-user-status.dto';
 
 @ApiTags('users')
@@ -164,9 +170,10 @@ export class UserController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Reset user password',
-    description: 'Reset password for a user after email verification (OTP verified)'
+    description:
+      'Reset password for a user after email verification (OTP verified)',
   })
   @ApiBody({ type: ResetPasswordDto })
   @ApiResponse({
@@ -202,17 +209,25 @@ export class UserController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Update current user profile',
-    description: 'Update profile information including avatar upload to Cloudinary'
+    description:
+      'Update profile information including avatar upload to Cloudinary',
   })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
         name: { type: 'string', example: 'John Doe' },
-        grade: { type: 'string', enum: ['GRADE_1', 'GRADE_2', 'GRADE_3', 'GRADE_4', 'GRADE_5'] },
+        grade: {
+          type: 'string',
+          enum: ['GRADE_1', 'GRADE_2', 'GRADE_3', 'GRADE_4', 'GRADE_5'],
+        },
         dob: { type: 'string', format: 'date', example: '2015-01-15' },
         gender: { type: 'string', enum: ['MALE', 'FEMALE', 'UNSET'] },
-        avatar: { type: 'string', format: 'binary', description: 'Avatar image file' },
+        avatar: {
+          type: 'string',
+          format: 'binary',
+          description: 'Avatar image file',
+        },
       },
     },
   })
@@ -234,7 +249,11 @@ export class UserController {
     @Body() updateProfileDto: UpdateProfileDto,
     @UploadedFile() avatar?: Express.Multer.File,
   ): Promise<UserProfileDto> {
-    return this.userService.updateProfile(req.user.id, updateProfileDto, avatar);
+    return this.userService.updateProfile(
+      req.user.id,
+      updateProfileDto,
+      avatar,
+    );
   }
 
   @Post('me/change-password')
@@ -243,7 +262,7 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Change current user password',
-    description: 'Change password for the currently logged-in user'
+    description: 'Change password for the currently logged-in user',
   })
   @ApiBody({ type: ChangePasswordDto })
   @ApiResponse({
@@ -259,7 +278,8 @@ export class UserController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad request - Invalid current password or new password same as old',
+    description:
+      'Bad request - Invalid current password or new password same as old',
   })
   @ApiResponse({
     status: 401,
