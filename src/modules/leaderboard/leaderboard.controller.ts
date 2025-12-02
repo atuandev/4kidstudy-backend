@@ -7,11 +7,10 @@ import { LeaderboardService } from './leaderboard.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { LeaderboardResponseDto, TopicXPStatsResponseDto } from './dtos/res';
 
-
 @Controller('leaderboard')
 @UseGuards(JwtAuthGuard)
 export class LeaderboardController {
-  constructor(private readonly leaderboardService: LeaderboardService) { }
+  constructor(private readonly leaderboardService: LeaderboardService) {}
 
   @Get('streak-stats')
   async getStreakStats(
@@ -44,7 +43,6 @@ export class LeaderboardController {
   }
 
   @Get('weekly')
-
   async getWeeklyLeaderboard(@Req() req: any): Promise<LeaderboardResponseDto> {
     const userId = req.user.id;
     return this.leaderboardService.getWeeklyLeaderboard(userId);

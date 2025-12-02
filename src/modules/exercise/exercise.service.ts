@@ -1036,194 +1036,204 @@ export class ExerciseService {
         return '';
       };
 
-      // Create exercises and options in transaction
-      return this.prisma.$transaction(async (tx) => {
-        const createdExercises = [];
+      // Create exercises and options in transaction with extended timeout for serverless
+      return this.prisma.$transaction(
+        async (tx) => {
+          const createdExercises = [];
 
-        for (let index = 0; index < data.length; index++) {
-          const row = data[index];
-          // Support both 'Type' and 'type' column names
-          const type = normalizeValue(row.Type || row.type) as ExerciseType;
+          for (let index = 0; index < data.length; index++) {
+            const row = data[index];
+            // Support both 'Type' and 'type' column names
+            const type = normalizeValue(row.Type || row.type) as ExerciseType;
 
-          // Validate required fields
-          if (!type) {
-            throw new BadRequestException(`Row ${index + 2}: Type is required`);
-          }
-
-          // Validate exercise type
-          const validTypes = Object.values(ExerciseType);
-          if (!validTypes.includes(type)) {
-            throw new BadRequestException(
-              `Row ${index + 2}: Invalid type '${type}'. Valid types: ${validTypes.join(', ')}`,
-            );
-          }
-
-          // Create exercise
-          const exercise = await tx.exercise.create({
-            data: {
-              lessonId,
-              type,
-              order: startOrder + index,
-              prompt: normalizeValue(row.prompt) || null,
-              imageUrl: mapAssetUrl(row.img) || null,
-              audioUrl: mapAssetUrl(row.audio) || null,
-              targetText: normalizeValue(row.targetText) || null,
-              hintVi: normalizeValue(row.hintVi) || null,
-              hintEn: normalizeValue(row.hintEn) || null,
-              points: 10,
-              difficulty: 1,
-            },
-          });
-
-          // Create options based on exercise type
-          if (type === 'SELECT_IMAGE') {
-            // optT: correct image, optF/optF1-3: incorrect images
-            const correctImgPath = row.optT || row.optt || row.OPTT;
-            // After rename, optF columns become optF1, optF2, optF3
-            const incorrectImg1 = row.optF1 || row.optf1 || row.OPTF1;
-            const incorrectImg2 = row.optF2 || row.optf2 || row.OPTF2;
-            const incorrectImg3 = row.optF3 || row.optf3 || row.OPTF3;
-
-            const correctImg = mapAssetUrl(correctImgPath);
-            const incorrectImgs = [
-              { url: mapAssetUrl(incorrectImg1), order: 1 },
-              { url: mapAssetUrl(incorrectImg2), order: 2 },
-              { url: mapAssetUrl(incorrectImg3), order: 3 },
-            ];
-
-            // Always create correct option
-            if (correctImg) {
-              await tx.exerciseOption.create({
-                data: {
-                  exerciseId: exercise.id,
-                  imageUrl: correctImg,
-                  isCorrect: true,
-                  order: 0,
-                },
-              });
+            // Validate required fields
+            if (!type) {
+              throw new BadRequestException(
+                `Row ${index + 2}: Type is required`,
+              );
             }
 
-            // Create all incorrect options (even if some URLs are empty)
-            for (const incorrectOpt of incorrectImgs) {
-              if (incorrectOpt.url) {
+            // Validate exercise type
+            const validTypes = Object.values(ExerciseType);
+            if (!validTypes.includes(type)) {
+              throw new BadRequestException(
+                `Row ${index + 2}: Invalid type '${type}'. Valid types: ${validTypes.join(', ')}`,
+              );
+            }
+
+            // Create exercise
+            const exercise = await tx.exercise.create({
+              data: {
+                lessonId,
+                type,
+                order: startOrder + index,
+                prompt: normalizeValue(row.prompt) || null,
+                imageUrl: mapAssetUrl(row.img) || null,
+                audioUrl: mapAssetUrl(row.audio) || null,
+                targetText: normalizeValue(row.targetText) || null,
+                hintVi: normalizeValue(row.hintVi) || null,
+                hintEn: normalizeValue(row.hintEn) || null,
+                points: 10,
+                difficulty: 1,
+              },
+            });
+
+            // Create options based on exercise type
+            if (type === 'SELECT_IMAGE') {
+              // optT: correct image, optF/optF1-3: incorrect images
+              const correctImgPath = row.optT || row.optt || row.OPTT;
+              // After rename, optF columns become optF1, optF2, optF3
+              const incorrectImg1 = row.optF1 || row.optf1 || row.OPTF1;
+              const incorrectImg2 = row.optF2 || row.optf2 || row.OPTF2;
+              const incorrectImg3 = row.optF3 || row.optf3 || row.OPTF3;
+
+              const correctImg = mapAssetUrl(correctImgPath);
+              const incorrectImgs = [
+                { url: mapAssetUrl(incorrectImg1), order: 1 },
+                { url: mapAssetUrl(incorrectImg2), order: 2 },
+                { url: mapAssetUrl(incorrectImg3), order: 3 },
+              ];
+
+              // Always create correct option
+              if (correctImg) {
                 await tx.exerciseOption.create({
                   data: {
                     exerciseId: exercise.id,
-                    imageUrl: incorrectOpt.url,
+                    imageUrl: correctImg,
+                    isCorrect: true,
+                    order: 0,
+                  },
+                });
+              }
+
+              // Create all incorrect options (even if some URLs are empty)
+              for (const incorrectOpt of incorrectImgs) {
+                if (incorrectOpt.url) {
+                  await tx.exerciseOption.create({
+                    data: {
+                      exerciseId: exercise.id,
+                      imageUrl: incorrectOpt.url,
+                      isCorrect: false,
+                      order: incorrectOpt.order,
+                    },
+                  });
+                }
+              }
+            } else if (type === 'MULTIPLE_CHOICE' || type === 'LISTENING') {
+              // optT: correct text, optF/optF1-3: incorrect texts
+              const correctTextRaw = row.optT || row.optt || row.OPTT;
+              // After rename, optF columns become optF1, optF2, optF3
+              const incorrectText1 = row.optF1 || row.optf1 || row.OPTF1;
+              const incorrectText2 = row.optF2 || row.optf2 || row.OPTF2;
+              const incorrectText3 = row.optF3 || row.optf3 || row.OPTF3;
+
+              const correctText = normalizeValue(correctTextRaw);
+              const incorrectTexts = [
+                { text: normalizeValue(incorrectText1), order: 1 },
+                { text: normalizeValue(incorrectText2), order: 2 },
+                { text: normalizeValue(incorrectText3), order: 3 },
+              ];
+
+              // Always create correct option
+              if (correctText) {
+                await tx.exerciseOption.create({
+                  data: {
+                    exerciseId: exercise.id,
+                    text: correctText,
+                    isCorrect: true,
+                    order: 0,
+                  },
+                });
+              }
+
+              // Create all incorrect options (even if some are empty)
+              for (const incorrectOpt of incorrectTexts) {
+                if (incorrectOpt.text) {
+                  await tx.exerciseOption.create({
+                    data: {
+                      exerciseId: exercise.id,
+                      text: incorrectOpt.text,
+                      isCorrect: false,
+                      order: incorrectOpt.order,
+                    },
+                  });
+                }
+              }
+            } else if (type === 'MATCHING') {
+              // For MATCHING type, pairs are in optT, optF1, optF2, optF3 (same structure as other types)
+              // Each pair is formatted as "left|right" (e.g., "CarImg|g1-u2-car.png" or "Car|xe hơi")
+              // Each pair creates 2 ExerciseOption rows with same matchKey
+
+              const optTVal = normalizeValue(row.optT);
+              const optF1Val = normalizeValue(row.optF1);
+              const optF2Val = normalizeValue(row.optF2);
+              const optF3Val = normalizeValue(row.optF3);
+
+              const allOpts = [optTVal, optF1Val, optF2Val, optF3Val];
+              // console.log(`🔍 MATCHING row ${index + 2} opts:`, allOpts);
+
+              const pairs = allOpts.filter(
+                (pair) => pair && pair.includes('|'),
+              );
+              // console.log(
+              //   `✅ Found ${pairs.length} valid pairs with '|':`,
+              //   pairs,
+              // );
+
+              let optionOrder = 0;
+              for (let i = 0; i < pairs.length; i++) {
+                const [left, right] = pairs[i].split('|').map((s) => s.trim());
+                const matchKey = `pair_${i + 1}`;
+
+                // Helper to detect if value is image path
+                const isImagePath = (val: string): boolean => {
+                  return (
+                    val.match(/\.(jpg|jpeg|png|gif|webp|mp3|mp4)$/i) !== null ||
+                    val.includes('g1-') ||
+                    val.includes('/')
+                  );
+                };
+
+                const leftIsImage = isImagePath(left);
+                const rightIsImage = isImagePath(right);
+
+                // Create left side option
+                await tx.exerciseOption.create({
+                  data: {
+                    exerciseId: exercise.id,
+                    text: leftIsImage ? null : left,
+                    imageUrl: leftIsImage ? mapAssetUrl(left) || null : null,
+                    matchKey,
                     isCorrect: false,
-                    order: incorrectOpt.order,
+                    order: optionOrder++,
+                  },
+                });
+
+                // Create right side option
+                await tx.exerciseOption.create({
+                  data: {
+                    exerciseId: exercise.id,
+                    text: rightIsImage ? null : right,
+                    imageUrl: rightIsImage ? mapAssetUrl(right) || null : null,
+                    matchKey,
+                    isCorrect: false,
+                    order: optionOrder++,
                   },
                 });
               }
             }
-          } else if (type === 'MULTIPLE_CHOICE' || type === 'LISTENING') {
-            // optT: correct text, optF/optF1-3: incorrect texts
-            const correctTextRaw = row.optT || row.optt || row.OPTT;
-            // After rename, optF columns become optF1, optF2, optF3
-            const incorrectText1 = row.optF1 || row.optf1 || row.OPTF1;
-            const incorrectText2 = row.optF2 || row.optf2 || row.OPTF2;
-            const incorrectText3 = row.optF3 || row.optf3 || row.OPTF3;
+            // PRONUNCIATION type: no options needed
 
-            const correctText = normalizeValue(correctTextRaw);
-            const incorrectTexts = [
-              { text: normalizeValue(incorrectText1), order: 1 },
-              { text: normalizeValue(incorrectText2), order: 2 },
-              { text: normalizeValue(incorrectText3), order: 3 },
-            ];
-
-            // Always create correct option
-            if (correctText) {
-              await tx.exerciseOption.create({
-                data: {
-                  exerciseId: exercise.id,
-                  text: correctText,
-                  isCorrect: true,
-                  order: 0,
-                },
-              });
-            }
-
-            // Create all incorrect options (even if some are empty)
-            for (const incorrectOpt of incorrectTexts) {
-              if (incorrectOpt.text) {
-                await tx.exerciseOption.create({
-                  data: {
-                    exerciseId: exercise.id,
-                    text: incorrectOpt.text,
-                    isCorrect: false,
-                    order: incorrectOpt.order,
-                  },
-                });
-              }
-            }
-          } else if (type === 'MATCHING') {
-            // For MATCHING type, pairs are in optT, optF1, optF2, optF3 (same structure as other types)
-            // Each pair is formatted as "left|right" (e.g., "CarImg|g1-u2-car.png" or "Car|xe hơi")
-            // Each pair creates 2 ExerciseOption rows with same matchKey
-
-            const optTVal = normalizeValue(row.optT);
-            const optF1Val = normalizeValue(row.optF1);
-            const optF2Val = normalizeValue(row.optF2);
-            const optF3Val = normalizeValue(row.optF3);
-
-            const allOpts = [optTVal, optF1Val, optF2Val, optF3Val];
-            // console.log(`🔍 MATCHING row ${index + 2} opts:`, allOpts);
-
-            const pairs = allOpts.filter((pair) => pair && pair.includes('|'));
-            // console.log(
-            //   `✅ Found ${pairs.length} valid pairs with '|':`,
-            //   pairs,
-            // );
-
-            let optionOrder = 0;
-            for (let i = 0; i < pairs.length; i++) {
-              const [left, right] = pairs[i].split('|').map((s) => s.trim());
-              const matchKey = `pair_${i + 1}`;
-
-              // Helper to detect if value is image path
-              const isImagePath = (val: string): boolean => {
-                return (
-                  val.match(/\.(jpg|jpeg|png|gif|webp|mp3|mp4)$/i) !== null ||
-                  val.includes('g1-') ||
-                  val.includes('/')
-                );
-              };
-
-              const leftIsImage = isImagePath(left);
-              const rightIsImage = isImagePath(right);
-
-              // Create left side option
-              await tx.exerciseOption.create({
-                data: {
-                  exerciseId: exercise.id,
-                  text: leftIsImage ? null : left,
-                  imageUrl: leftIsImage ? mapAssetUrl(left) || null : null,
-                  matchKey,
-                  isCorrect: false,
-                  order: optionOrder++,
-                },
-              });
-
-              // Create right side option
-              await tx.exerciseOption.create({
-                data: {
-                  exerciseId: exercise.id,
-                  text: rightIsImage ? null : right,
-                  imageUrl: rightIsImage ? mapAssetUrl(right) || null : null,
-                  matchKey,
-                  isCorrect: false,
-                  order: optionOrder++,
-                },
-              });
-            }
+            createdExercises.push(exercise);
           }
-          // PRONUNCIATION type: no options needed
 
-          createdExercises.push(exercise);
-        }
-
-        return createdExercises;
-      });
+          return createdExercises;
+        },
+        {
+          maxWait: 15000, // 15 seconds
+          timeout: 15000, // 15 seconds
+        },
+      );
     } catch (error: unknown) {
       if (
         error instanceof NotFoundException ||

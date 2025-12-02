@@ -8,10 +8,9 @@ import {
   TopicXPStatsResponseDto,
 } from './dtos/res';
 
-
 @Injectable()
 export class LeaderboardService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Get streak statistics for a user within specified days

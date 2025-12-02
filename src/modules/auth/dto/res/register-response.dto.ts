@@ -31,4 +31,3 @@ export class RegisterResponseDto {
   @ApiProperty()
   user: RegisterUserResponseDto;
 }
-
