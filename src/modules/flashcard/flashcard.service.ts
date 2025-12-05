@@ -23,7 +23,7 @@ cloudinary.config({
 
 @Injectable()
 export class FlashcardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Upload file to Cloudinary
@@ -445,7 +445,7 @@ export class FlashcardService {
       const extractFileName = (path: string): string => {
         if (!path || typeof path !== 'string') return '';
         const normalized = path.trim();
-        if (normalized === '\\n' || normalized === '\n') return '';
+        if (!normalized) return ''; // Handles empty strings and whitespace-only
         return normalized.split('\\').pop()?.split('/').pop() || '';
       };
 
@@ -454,7 +454,7 @@ export class FlashcardService {
         if (value === undefined || value === null) return '';
         if (typeof value === 'string') {
           const s = value.trim();
-          if (s === '\n' || s === '\n') return '';
+          if (!s) return ''; // Handles empty strings and whitespace-only
           return s;
         }
         if (typeof value === 'object') return '';
