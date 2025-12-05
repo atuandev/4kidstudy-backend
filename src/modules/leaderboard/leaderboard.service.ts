@@ -10,7 +10,7 @@ import {
 
 @Injectable()
 export class LeaderboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Get streak statistics for a user within specified days
@@ -23,6 +23,7 @@ export class LeaderboardService {
     startDate.setDate(startDate.getDate() - days + 1);
     startDate.setHours(0, 0, 0, 0);
 
+    // Get user's own streak logs
     const streakLogs = await this.prisma.streakLog.findMany({
       where: {
         userId,
@@ -42,8 +43,48 @@ export class LeaderboardService {
 
     const totalXP = streakLogs.reduce((sum, log) => sum + log.xpEarned, 0);
 
+    // Get user's grade
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { grade: true },
+    });
+
+    // Get all streak logs for users in the same grade
+    const gradeStreakLogs = await this.prisma.streakLog.findMany({
+      where: {
+        day: {
+          gte: startDate,
+        },
+        user: {
+          grade: user?.grade,
+        },
+      },
+      orderBy: {
+        day: 'asc',
+      },
+    });
+
+    // Group by date and sum XP for each day
+    const gradeXpByDate = gradeStreakLogs.reduce(
+      (acc, log) => {
+        const date = log.day.toISOString().split('T')[0];
+        if (!acc[date]) {
+          acc[date] = 0;
+        }
+        acc[date] += log.xpEarned;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    const gradeData = Object.entries(gradeXpByDate).map(([date, xpEarned]) => ({
+      date,
+      xpEarned,
+    }));
+
     return {
       data,
+      gradeData,
       totalXP,
       days,
     };
