@@ -221,8 +221,73 @@ export class LeaderboardService {
 
     const totalXP = data.reduce((sum, item) => sum + item.xpEarned, 0);
 
+    // Get user's grade
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { grade: true },
+    });
+
+    // Get all XP logs for users in the same grade
+    const gradeXpLogs = await this.prisma.xPLog.findMany({
+      where: {
+        lessonId: {
+          not: null,
+        },
+        createdAt: {
+          gte: startDate,
+        },
+        user: {
+          grade: user?.grade,
+        },
+      },
+    });
+
+    // Get lessons for grade XP logs
+    const gradeLessonIds = [
+      ...new Set(gradeXpLogs.map((log) => log.lessonId)),
+    ].filter((id): id is number => id !== null);
+
+    const gradeLessons = await this.prisma.lesson.findMany({
+      where: {
+        id: {
+          in: gradeLessonIds,
+        },
+      },
+      include: {
+        topic: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+    });
+
+    const gradeLessonToTopic = new Map(
+      gradeLessons.map((lesson) => [lesson.id, lesson.topic]),
+    );
+
+    // Group grade XP by topic
+    const gradeTopicXPMap = new Map<number, number>();
+
+    for (const log of gradeXpLogs) {
+      if (log.lessonId === null) continue;
+
+      const topic = gradeLessonToTopic.get(log.lessonId);
+      if (!topic) continue;
+
+      const existing = gradeTopicXPMap.get(topic.id) || 0;
+      gradeTopicXPMap.set(topic.id, existing + log.amount);
+    }
+
+    // Merge grade XP into user data
+    const dataWithGradeXP = data.map((item) => ({
+      ...item,
+      gradeXpEarned: gradeTopicXPMap.get(item.topicId) || 0,
+    }));
+
     return {
-      data,
+      data: dataWithGradeXP,
       totalXP,
     };
   }
