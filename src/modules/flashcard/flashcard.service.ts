@@ -285,18 +285,45 @@ export class FlashcardService {
     // Check if flashcard exists
     await this.findOne(id);
 
-    return this.prisma.flashcard.delete({
-      where: { id },
-      include: {
-        topic: {
-          select: {
-            id: true,
-            title: true,
-            grade: true,
+    // Check if this flashcard has any learning progress
+    const progressCount = await this.prisma.learningProgress.count({
+      where: { flashcardId: id },
+    });
+
+    const hasProgress = progressCount > 0;
+
+    if (hasProgress) {
+      // Soft delete - set isActive = false to preserve learning data
+      const updated = await this.prisma.flashcard.update({
+        where: { id },
+        data: { isActive: false },
+        include: {
+          topic: {
+            select: {
+              id: true,
+              title: true,
+              grade: true,
+            },
           },
         },
-      },
-    });
+      });
+      return { flashcard: updated, hasProgress: true, deleted: false };
+    } else {
+      // Hard delete - no learning data to preserve
+      const deleted = await this.prisma.flashcard.delete({
+        where: { id },
+        include: {
+          topic: {
+            select: {
+              id: true,
+              title: true,
+              grade: true,
+            },
+          },
+        },
+      });
+      return { flashcard: deleted, hasProgress: false, deleted: true };
+    }
   }
 
   async getFlashcardStats(topicId?: number) {
