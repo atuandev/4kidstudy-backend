@@ -11,6 +11,7 @@ import {
   HttpStatus,
   HttpCode,
   UseInterceptors,
+  Res,
   // UploadedFile,
   UploadedFiles,
   BadRequestException,
@@ -19,6 +20,7 @@ import {
   // FileInterceptor,
   FileFieldsInterceptor,
 } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { ApiConsumes } from '@nestjs/swagger';
 import {
   ApiTags,
@@ -39,7 +41,7 @@ import {
 @ApiTags('flashcards')
 @Controller('flashcards')
 export class FlashcardController {
-  constructor(private readonly flashcardService: FlashcardService) {}
+  constructor(private readonly flashcardService: FlashcardService) { }
 
   @Post()
   @ApiOperation({
@@ -303,6 +305,35 @@ export class FlashcardController {
   })
   async getFlashcardStats(@Query('topicId') topicId?: number) {
     return this.flashcardService.getFlashcardStats(topicId);
+  }
+
+  @Get('export')
+  @ApiOperation({
+    summary: 'Export flashcards to Excel',
+    description: 'Exports flashcards to Excel file (limited to 20 for demo)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async exportFlashcards(@Res() res: Response) {
+    const buffer = await this.flashcardService.exportToExcel();
+
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="flashcards-export.xlsx"',
+      'Content-Length': buffer.length,
+    });
+
+    res.send(buffer);
   }
 
   @Get(':id')

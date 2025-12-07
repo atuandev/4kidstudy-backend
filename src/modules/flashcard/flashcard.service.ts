@@ -23,7 +23,7 @@ cloudinary.config({
 
 @Injectable()
 export class FlashcardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Upload file to Cloudinary
@@ -159,6 +159,57 @@ export class FlashcardService {
       }
       return createdFlashcards;
     });
+  }
+
+  /**
+   * Export flashcards to Excel format
+   * Returns buffer of Excel file
+   */
+  async exportToExcel(): Promise<Buffer> {
+    // Fetch flashcards with limit for demo
+    const flashcards = await this.prisma.flashcard.findMany({
+      where: { isActive: true },
+      orderBy: [{ topicId: 'asc' }, { order: 'asc' }],
+      take: 20, // Limit to 20 for demo
+      include: {
+        topic: {
+          select: {
+            title: true,
+          },
+        },
+      },
+    });
+
+    // Prepare data for Excel
+    const excelData = flashcards.map((fc) => ({
+      term: fc.term,
+      phonetic: fc.phonetic || '',
+      meaningVi: fc.meaningVi,
+      ExEn: fc.exampleEn || '',
+      ExVi: fc.exampleVi || '',
+      img: fc.imageUrl || '',
+      audio: fc.audioUrl || '',
+    }));
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Flashcards');
+
+    // Set column widths for better readability
+    worksheet['!cols'] = [
+      { wch: 15 }, // term
+      { wch: 15 }, // phonetic
+      { wch: 20 }, // meaningVi
+      { wch: 30 }, // ExEn
+      { wch: 30 }, // ExVi
+      { wch: 50 }, // img (URL)
+      { wch: 50 }, // audio (URL)
+    ];
+
+    // Generate buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    return buffer;
   }
 
   async findAll(topicId?: number, isActive?: boolean, search?: string) {
