@@ -372,9 +372,23 @@ export class SentenceService {
         );
       }
     }
+
+    // Extract resetProgress from DTO
+    const { resetProgress, ...updateData } = updateSentenceDto;
+
+    // If resetProgress is true, delete all learning progress for this sentence
+    if (resetProgress) {
+      await this.prisma.learningProgress.deleteMany({
+        where: {
+          sentenceId: id,
+          contentType: 'SENTENCE',
+        },
+      });
+    }
+
     return this.prisma.sentence.update({
       where: { id },
-      data: updateSentenceDto,
+      data: updateData,
     });
   }
 
@@ -400,6 +414,39 @@ export class SentenceService {
     return this.prisma.sentence.delete({
       where: { id },
     });
+  }
+
+  /**
+   * Check if sentences have learning progress
+   */
+  async checkProgress(sentenceIds: number[]) {
+    const sentences = await this.prisma.sentence.findMany({
+      where: {
+        id: { in: sentenceIds },
+      },
+      include: {
+        progress: {
+          where: {
+            contentType: 'SENTENCE',
+          },
+          select: {
+            id: true,
+            userId: true,
+            reviewCount: true,
+            isMastered: true,
+            lastReviewedAt: true,
+          },
+        },
+      },
+    });
+
+    return sentences.map((sentence) => ({
+      id: sentence.id,
+      text: sentence.text,
+      hasProgress: sentence.progress.length > 0,
+      progressCount: sentence.progress.length,
+      masteredCount: sentence.progress.filter((p) => p.isMastered).length,
+    }));
   }
 
   /**

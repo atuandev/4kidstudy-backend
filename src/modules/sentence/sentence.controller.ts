@@ -278,6 +278,34 @@ export class SentenceController {
     return this.sentenceService.updateSentenceImage(id, updateSentenceImageDto);
   }
 
+  @Post('check-progress')
+  @ApiOperation({
+    summary: 'Check learning progress for sentences',
+    description:
+      'Check if sentences have learning progress that would be reset',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        sentenceIds: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Array of sentence IDs to check',
+        },
+      },
+      required: ['sentenceIds'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns sentences with progress information',
+  })
+  @HttpCode(HttpStatus.OK)
+  async checkProgress(@Body() body: { sentenceIds: number[] }) {
+    return this.sentenceService.checkProgress(body.sentenceIds);
+  }
+
   @Put(':id')
   @ApiOperation({
     summary: 'Update sentence',

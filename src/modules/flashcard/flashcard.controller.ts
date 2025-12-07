@@ -11,12 +11,12 @@ import {
   HttpStatus,
   HttpCode,
   UseInterceptors,
-  UploadedFile,
+  // UploadedFile,
   UploadedFiles,
   BadRequestException,
 } from '@nestjs/common';
 import {
-  FileInterceptor,
+  // FileInterceptor,
   FileFieldsInterceptor,
 } from '@nestjs/platform-express';
 import { ApiConsumes } from '@nestjs/swagger';
