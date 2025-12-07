@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   Query,
+  Res,
   // UseGuards,
   ParseIntPipe,
   UseInterceptors,
@@ -14,6 +15,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import {
   // ApiBearerAuth,
   ApiTags,
@@ -44,7 +46,7 @@ import { ExerciseType } from '@prisma/client';
 @ApiTags('exercises')
 @Controller('exercises')
 export class ExerciseController {
-  constructor(private readonly exerciseService: ExerciseService) {}
+  constructor(private readonly exerciseService: ExerciseService) { }
 
   @Get()
   //   @UseGuards(JwtAuthGuard)
@@ -73,6 +75,44 @@ export class ExerciseController {
     @Query('type') type?: ExerciseType,
   ) {
     return this.exerciseService.findAll(lessonId, type);
+  }
+
+  @Get('export')
+  @ApiOperation({
+    summary: 'Export exercises to Excel',
+    description: 'Exports exercises to Excel file (limited to 20 for demo)',
+  })
+  @ApiQuery({
+    name: 'lessonId',
+    type: Number,
+    required: false,
+    description: 'Filter by lesson ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async exportExercises(
+    @Res() res: Response,
+    @Query('lessonId') lessonId?: number,
+  ) {
+    const buffer = await this.exerciseService.exportToExcel(lessonId);
+
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="exercises-export.xlsx"',
+      'Content-Length': buffer.length,
+    });
+
+    res.send(buffer);
   }
 
   @Get(':id')
