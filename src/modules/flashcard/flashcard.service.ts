@@ -23,7 +23,7 @@ cloudinary.config({
 
 @Injectable()
 export class FlashcardService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Upload file to Cloudinary
@@ -249,6 +249,40 @@ export class FlashcardService {
     return flashcard;
   }
 
+  async checkProgress(flashcardIds: number[]) {
+    // Get all flashcards with their progress
+    const flashcards = await this.prisma.flashcard.findMany({
+      where: {
+        id: { in: flashcardIds },
+      },
+      select: {
+        id: true,
+        term: true,
+        progress: {
+          where: {
+            contentType: 'FLASHCARD',
+          },
+          select: {
+            id: true,
+            isMastered: true,
+          },
+        },
+      },
+    });
+
+    // Filter only flashcards that have progress
+    const flashcardsWithProgress = flashcards
+      .filter((fc) => fc.progress.length > 0)
+      .map((fc) => ({
+        id: fc.id,
+        term: fc.term,
+        progressCount: fc.progress.length,
+        hasMastered: fc.progress.some((p) => p.isMastered),
+      }));
+
+    return flashcardsWithProgress;
+  }
+
   async update(id: number, updateFlashcardDto: UpdateFlashcardDto) {
     // Check if flashcard exists
     await this.findOne(id);
@@ -266,9 +300,22 @@ export class FlashcardService {
       }
     }
 
+    // Extract resetProgress from DTO and remove it before updating flashcard
+    const { resetProgress, ...flashcardData } = updateFlashcardDto;
+
+    // If resetProgress is true, delete all learning progress for this flashcard
+    if (resetProgress) {
+      await this.prisma.learningProgress.deleteMany({
+        where: {
+          flashcardId: id,
+          contentType: 'FLASHCARD',
+        },
+      });
+    }
+
     return this.prisma.flashcard.update({
       where: { id },
-      data: updateFlashcardDto,
+      data: flashcardData,
       include: {
         topic: {
           select: {

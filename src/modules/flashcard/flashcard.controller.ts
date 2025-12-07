@@ -146,6 +146,34 @@ export class FlashcardController {
     );
   }
 
+  @Post('check-progress')
+  @ApiOperation({
+    summary: 'Check learning progress for flashcards',
+    description:
+      'Check if flashcards have learning progress that would be reset',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        flashcardIds: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Array of flashcard IDs to check',
+        },
+      },
+      required: ['flashcardIds'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns flashcards with progress information',
+  })
+  @HttpCode(HttpStatus.OK)
+  async checkProgress(@Body() body: { flashcardIds: number[] }) {
+    return this.flashcardService.checkProgress(body.flashcardIds);
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Get all flashcards',
