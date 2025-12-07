@@ -499,31 +499,30 @@ export class LearningProgressService {
     lastReviewedFlashcardIndex?: number;
     lastReviewedSentenceIndex?: number;
   }> {
-    // Count total flashcards in topic (only active ones)
-    const totalFlashcards = await this.prisma.flashcard.count({
+    // Get all active flashcard IDs in topic first
+    const activeFlashcards = await this.prisma.flashcard.findMany({
       where: { topicId, isActive: true },
+      select: { id: true },
     });
+    const activeFlashcardIds = activeFlashcards.map((f) => f.id);
+    const totalFlashcards = activeFlashcardIds.length;
 
-    // Count mastered flashcards by user in this topic (only isMastered = true)
+    // Count mastered flashcards by user in this topic (only isMastered = true AND flashcard is active)
     const reviewedFlashcards = await this.prisma.learningProgress.count({
       where: {
         userId,
         contentType: LearningContentType.FLASHCARD,
-        isMastered: true, // Only count mastered flashcards
-        flashcard: {
-          topicId,
-        },
+        isMastered: true,
+        flashcardId: { in: activeFlashcardIds },
       },
     });
 
-    // Get all reviewed flashcards to find the one with highest index
+    // Get all reviewed flashcards to find the one with highest index (only active ones)
     const reviewedFlashcardsList = await this.prisma.learningProgress.findMany({
       where: {
         userId,
         contentType: LearningContentType.FLASHCARD,
-        flashcard: {
-          topicId,
-        },
+        flashcardId: { in: activeFlashcardIds },
       },
       include: {
         flashcard: true,
@@ -557,8 +556,8 @@ export class LearningProgressService {
       }
     }
 
-    // Count total sentences in topic (only active sentences from active sentenceImages)
-    const totalSentences = await this.prisma.sentence.count({
+    // Get all active sentence IDs in topic first
+    const activeSentences = await this.prisma.sentence.findMany({
       where: {
         isActive: true,
         sentenceImage: {
@@ -566,36 +565,27 @@ export class LearningProgressService {
           isActive: true,
         },
       },
+      select: { id: true },
     });
+    const activeSentenceIds = activeSentences.map((s) => s.id);
+    const totalSentences = activeSentenceIds.length;
 
-    // Count mastered sentences by user in this topic (only isMastered = true, active sentences only)
+    // Count mastered sentences by user in this topic (only isMastered = true AND sentence is active)
     const reviewedSentences = await this.prisma.learningProgress.count({
       where: {
         userId,
         contentType: LearningContentType.SENTENCE,
-        isMastered: true, // Only count mastered sentences
-        sentence: {
-          isActive: true,
-          sentenceImage: {
-            topicId,
-            isActive: true,
-          },
-        },
+        isMastered: true,
+        sentenceId: { in: activeSentenceIds },
       },
     });
 
-    // Get all reviewed sentences to find the one with highest index (only active)
+    // Get all reviewed sentences to find the one with highest index (only active ones)
     const reviewedSentencesList = await this.prisma.learningProgress.findMany({
       where: {
         userId,
         contentType: LearningContentType.SENTENCE,
-        sentence: {
-          isActive: true,
-          sentenceImage: {
-            topicId,
-            isActive: true,
-          },
-        },
+        sentenceId: { in: activeSentenceIds },
       },
       include: {
         sentence: {

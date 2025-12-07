@@ -328,6 +328,31 @@ export class FlashcardService {
     });
   }
 
+  async checkProgressForDelete(id: number) {
+    const flashcard = await this.prisma.flashcard.findUnique({
+      where: { id },
+      include: {
+        progress: {
+          where: {
+            contentType: 'FLASHCARD',
+          },
+        },
+      },
+    });
+
+    if (!flashcard) {
+      throw new NotFoundException(`Flashcard with ID ${id} not found`);
+    }
+
+    return {
+      id: flashcard.id,
+      term: flashcard.term,
+      hasProgress: flashcard.progress.length > 0,
+      progressCount: flashcard.progress.length,
+      masteredCount: flashcard.progress.filter((p) => p.isMastered).length,
+    };
+  }
+
   async remove(id: number) {
     // Check if flashcard exists
     await this.findOne(id);

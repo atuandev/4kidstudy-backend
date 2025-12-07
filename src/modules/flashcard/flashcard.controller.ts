@@ -174,6 +174,25 @@ export class FlashcardController {
     return this.flashcardService.checkProgress(body.flashcardIds);
   }
 
+  @Post('check-progress-for-delete/:id')
+  @ApiOperation({
+    summary: 'Check if flashcard has learning progress before delete',
+    description: 'Check if flashcard has learning progress',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Flashcard ID',
+    type: 'number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns progress information for flashcard',
+  })
+  @HttpCode(HttpStatus.OK)
+  async checkFlashcardProgressForDelete(@Param('id', ParseIntPipe) id: number) {
+    return this.flashcardService.checkProgressForDelete(id);
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Get all flashcards',
