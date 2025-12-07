@@ -40,7 +40,7 @@ type SentenceImageWithSentences = SentenceImage & {
  */
 @Injectable()
 export class SentenceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Get all sentence images by topic ID with their associated sentences
@@ -393,12 +393,13 @@ export class SentenceService {
   }
 
   /**
-   * Delete a sentence image
+   * Soft delete a sentence image (set isActive = false)
    */
   async deleteSentenceImage(id: number): Promise<SentenceImageWithSentences> {
     await this.getSentenceImageById(id);
-    return this.prisma.sentenceImage.delete({
+    return this.prisma.sentenceImage.update({
       where: { id },
+      data: { isActive: false },
       include: {
         sentences: true,
         topic: true,
@@ -407,12 +408,13 @@ export class SentenceService {
   }
 
   /**
-   * Delete a sentence
+   * Soft delete a sentence (set isActive = false)
    */
   async deleteSentence(id: number): Promise<Sentence> {
     await this.getSentenceById(id);
-    return this.prisma.sentence.delete({
+    return this.prisma.sentence.update({
       where: { id },
+      data: { isActive: false },
     });
   }
 
@@ -447,6 +449,76 @@ export class SentenceService {
       progressCount: sentence.progress.length,
       masteredCount: sentence.progress.filter((p) => p.isMastered).length,
     }));
+  }
+
+  /**
+   * Check if sentence image has learning progress before delete
+   */
+  async checkSentenceImageProgressForDelete(id: number) {
+    const sentenceImage = await this.prisma.sentenceImage.findUnique({
+      where: { id },
+      include: {
+        sentences: {
+          include: {
+            progress: {
+              where: {
+                contentType: 'SENTENCE',
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!sentenceImage) {
+      throw new NotFoundException(`Sentence image with ID ${id} not found`);
+    }
+
+    const totalProgress = sentenceImage.sentences.reduce(
+      (sum, sentence) => sum + sentence.progress.length,
+      0,
+    );
+    const totalMastered = sentenceImage.sentences.reduce(
+      (sum, sentence) =>
+        sum + sentence.progress.filter((p) => p.isMastered).length,
+      0,
+    );
+
+    return {
+      id: sentenceImage.id,
+      hasProgress: totalProgress > 0,
+      progressCount: totalProgress,
+      masteredCount: totalMastered,
+      sentenceCount: sentenceImage.sentences.length,
+    };
+  }
+
+  /**
+   * Check if sentence has learning progress before delete
+   */
+  async checkSentenceProgressForDelete(id: number) {
+    const sentence = await this.prisma.sentence.findUnique({
+      where: { id },
+      include: {
+        progress: {
+          where: {
+            contentType: 'SENTENCE',
+          },
+        },
+      },
+    });
+
+    if (!sentence) {
+      throw new NotFoundException(`Sentence with ID ${id} not found`);
+    }
+
+    return {
+      id: sentence.id,
+      text: sentence.text,
+      hasProgress: sentence.progress.length > 0,
+      progressCount: sentence.progress.length,
+      masteredCount: sentence.progress.filter((p) => p.isMastered).length,
+    };
   }
 
   /**

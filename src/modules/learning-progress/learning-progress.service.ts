@@ -20,7 +20,7 @@ import {
  */
 @Injectable()
 export class LearningProgressService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Get or create learning progress for a user and content
@@ -55,24 +55,24 @@ export class LearningProgressService {
       include: {
         flashcard: flashcardId
           ? {
-              select: {
-                id: true,
-                term: true,
-                meaningVi: true,
-                imageUrl: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              term: true,
+              meaningVi: true,
+              imageUrl: true,
+              audioUrl: true,
+            },
+          }
           : false,
         sentence: sentenceId
           ? {
-              select: {
-                id: true,
-                text: true,
-                meaningVi: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              text: true,
+              meaningVi: true,
+              audioUrl: true,
+            },
+          }
           : false,
       },
     });
@@ -113,24 +113,24 @@ export class LearningProgressService {
       include: {
         flashcard: flashcardId
           ? {
-              select: {
-                id: true,
-                term: true,
-                meaningVi: true,
-                imageUrl: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              term: true,
+              meaningVi: true,
+              imageUrl: true,
+              audioUrl: true,
+            },
+          }
           : false,
         sentence: sentenceId
           ? {
-              select: {
-                id: true,
-                text: true,
-                meaningVi: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              text: true,
+              meaningVi: true,
+              audioUrl: true,
+            },
+          }
           : false,
       },
     });
@@ -182,24 +182,24 @@ export class LearningProgressService {
       include: {
         flashcard: flashcardId
           ? {
-              select: {
-                id: true,
-                term: true,
-                meaningVi: true,
-                imageUrl: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              term: true,
+              meaningVi: true,
+              imageUrl: true,
+              audioUrl: true,
+            },
+          }
           : false,
         sentence: sentenceId
           ? {
-              select: {
-                id: true,
-                text: true,
-                meaningVi: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              text: true,
+              meaningVi: true,
+              audioUrl: true,
+            },
+          }
           : false,
       },
     });
@@ -356,24 +356,24 @@ export class LearningProgressService {
       include: {
         flashcard: progress.flashcardId
           ? {
-              select: {
-                id: true,
-                term: true,
-                meaningVi: true,
-                imageUrl: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              term: true,
+              meaningVi: true,
+              imageUrl: true,
+              audioUrl: true,
+            },
+          }
           : false,
         sentence: progress.sentenceId
           ? {
-              select: {
-                id: true,
-                text: true,
-                meaningVi: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              text: true,
+              meaningVi: true,
+              audioUrl: true,
+            },
+          }
           : false,
       },
     });
@@ -436,33 +436,33 @@ export class LearningProgressService {
   ): LearningProgressResponseDto {
     const flashcard = progress.flashcard
       ? {
-          id: progress.flashcard.id,
-          term: progress.flashcard.term,
-          meaningVi: progress.flashcard.meaningVi,
-          imageUrl: progress.flashcard.imageUrl ?? undefined,
-          audioUrl: progress.flashcard.audioUrl ?? undefined,
-          ...(progress.flashcard.topicId && {
-            topicId: progress.flashcard.topicId,
-          }),
-          ...(progress.flashcard.topic && {
-            topic: progress.flashcard.topic,
-          }),
-        }
+        id: progress.flashcard.id,
+        term: progress.flashcard.term,
+        meaningVi: progress.flashcard.meaningVi,
+        imageUrl: progress.flashcard.imageUrl ?? undefined,
+        audioUrl: progress.flashcard.audioUrl ?? undefined,
+        ...(progress.flashcard.topicId && {
+          topicId: progress.flashcard.topicId,
+        }),
+        ...(progress.flashcard.topic && {
+          topic: progress.flashcard.topic,
+        }),
+      }
       : undefined;
 
     const sentence = progress.sentence
       ? {
-          id: progress.sentence.id,
-          text: progress.sentence.text,
-          meaningVi: progress.sentence.meaningVi ?? undefined,
-          audioUrl: progress.sentence.audioUrl ?? undefined,
-          ...(progress.sentence.sentenceImageId && {
-            sentenceImageId: progress.sentence.sentenceImageId,
-          }),
-          ...(progress.sentence.sentenceImage && {
-            sentenceImage: progress.sentence.sentenceImage,
-          }),
-        }
+        id: progress.sentence.id,
+        text: progress.sentence.text,
+        meaningVi: progress.sentence.meaningVi ?? undefined,
+        audioUrl: progress.sentence.audioUrl ?? undefined,
+        ...(progress.sentence.sentenceImageId && {
+          sentenceImageId: progress.sentence.sentenceImageId,
+        }),
+        ...(progress.sentence.sentenceImage && {
+          sentenceImage: progress.sentence.sentenceImage,
+        }),
+      }
       : undefined;
 
     return {
@@ -557,37 +557,43 @@ export class LearningProgressService {
       }
     }
 
-    // Count total sentences in topic
+    // Count total sentences in topic (only active sentences from active sentenceImages)
     const totalSentences = await this.prisma.sentence.count({
       where: {
+        isActive: true,
         sentenceImage: {
           topicId,
+          isActive: true,
         },
       },
     });
 
-    // Count mastered sentences by user in this topic (only isMastered = true)
+    // Count mastered sentences by user in this topic (only isMastered = true, active sentences only)
     const reviewedSentences = await this.prisma.learningProgress.count({
       where: {
         userId,
         contentType: LearningContentType.SENTENCE,
         isMastered: true, // Only count mastered sentences
         sentence: {
+          isActive: true,
           sentenceImage: {
             topicId,
+            isActive: true,
           },
         },
       },
     });
 
-    // Get all reviewed sentences to find the one with highest index
+    // Get all reviewed sentences to find the one with highest index (only active)
     const reviewedSentencesList = await this.prisma.learningProgress.findMany({
       where: {
         userId,
         contentType: LearningContentType.SENTENCE,
         sentence: {
+          isActive: true,
           sentenceImage: {
             topicId,
+            isActive: true,
           },
         },
       },
@@ -604,7 +610,7 @@ export class LearningProgressService {
     let lastReviewedSentenceIndex: number | undefined = undefined;
     if (reviewedSentencesList.length > 0) {
       const allSentenceImages = await this.prisma.sentenceImage.findMany({
-        where: { topicId },
+        where: { topicId, isActive: true },
         orderBy: { order: 'asc' },
         select: { id: true, order: true },
       });

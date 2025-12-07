@@ -306,6 +306,47 @@ export class SentenceController {
     return this.sentenceService.checkProgress(body.sentenceIds);
   }
 
+  @Post('images/check-progress-for-delete/:id')
+  @ApiOperation({
+    summary: 'Check if sentence image has learning progress before delete',
+    description:
+      'Check if sentence image or its sentences have learning progress',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Sentence image ID',
+    type: 'number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns progress information for sentence image',
+  })
+  @HttpCode(HttpStatus.OK)
+  async checkSentenceImageProgressForDelete(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.sentenceService.checkSentenceImageProgressForDelete(id);
+  }
+
+  @Post('check-progress-for-delete/:id')
+  @ApiOperation({
+    summary: 'Check if sentence has learning progress before delete',
+    description: 'Check if sentence has learning progress',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Sentence ID',
+    type: 'number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns progress information for sentence',
+  })
+  @HttpCode(HttpStatus.OK)
+  async checkSentenceProgressForDelete(@Param('id', ParseIntPipe) id: number) {
+    return this.sentenceService.checkSentenceProgressForDelete(id);
+  }
+
   @Put(':id')
   @ApiOperation({
     summary: 'Update sentence',
