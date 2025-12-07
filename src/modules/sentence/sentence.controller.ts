@@ -11,6 +11,7 @@ import {
   HttpStatus,
   HttpCode,
   UseInterceptors,
+  Res,
   UploadedFiles,
   BadRequestException,
 } from '@nestjs/common';
@@ -24,6 +25,7 @@ import {
   ApiConsumes,
 } from '@nestjs/swagger';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { SentenceService } from './sentence.service';
 import {
   CreateSentenceImageDto,
@@ -39,7 +41,7 @@ import {
 @ApiTags('sentences')
 @Controller('sentences')
 export class SentenceController {
-  constructor(private readonly sentenceService: SentenceService) {}
+  constructor(private readonly sentenceService: SentenceService) { }
 
   @Get('images')
   @ApiOperation({
@@ -222,6 +224,35 @@ export class SentenceController {
   })
   async getSentenceImageById(@Param('id', ParseIntPipe) id: number) {
     return this.sentenceService.getSentenceImageById(id);
+  }
+
+  @Get('export')
+  @ApiOperation({
+    summary: 'Export sentences to Excel',
+    description: 'Exports sentences to Excel file (limited to 20 for demo)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async exportSentences(@Res() res: Response) {
+    const buffer = await this.sentenceService.exportToExcel();
+
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="sentences-export.xlsx"',
+      'Content-Length': buffer.length,
+    });
+
+    res.send(buffer);
   }
 
   @Get(':id')

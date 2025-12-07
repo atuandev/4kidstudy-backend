@@ -826,4 +826,82 @@ export class SentenceService {
       );
     }
   }
+
+  /**
+   * Export sentences to Excel format (14 columns)
+   * Returns buffer of Excel file
+   */
+  async exportToExcel(): Promise<Buffer> {
+    // Fetch sentence images with sentences, limit for demo
+    const sentenceImages = await this.prisma.sentenceImage.findMany({
+      where: { isActive: true },
+      orderBy: [{ topicId: 'asc' }, { order: 'asc' }],
+      take: 20, // Limit to 20 for demo
+      include: {
+        sentences: {
+          where: { isActive: true },
+          orderBy: { order: 'asc' },
+          take: 4, // Max 4 sentences per image
+        },
+        topic: {
+          select: {
+            title: true,
+          },
+        },
+      },
+    });
+
+    // Prepare data for Excel - each row is one SentenceImage with up to 4 sentences
+    const excelData = sentenceImages.map((img) => {
+      const row: any = {
+        imgSentence: img.imageUrl || '',
+        audioImg: img.audioUrl || '',
+      };
+
+      // Add up to 4 sentences
+      for (let i = 0; i < 4; i++) {
+        const sentence = img.sentences[i];
+        const num = String(i + 1).padStart(2, '0'); // 01, 02, 03, 04
+
+        if (sentence) {
+          row[`sen${num}`] = sentence.text || '';
+          row[`sen${num}Vi`] = sentence.meaningVi || '';
+          row[`sen${num}audio`] = sentence.audioUrl || '';
+        } else {
+          row[`sen${num}`] = '';
+          row[`sen${num}Vi`] = '';
+          row[`sen${num}audio`] = '';
+        }
+      }
+
+      return row;
+    });
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sentences');
+
+    // Set column widths for better readability
+    worksheet['!cols'] = [
+      { wch: 50 }, // imgSentence
+      { wch: 50 }, // audioImg
+      { wch: 30 }, // sen01
+      { wch: 30 }, // sen01Vi
+      { wch: 50 }, // sen01audio
+      { wch: 30 }, // sen02
+      { wch: 30 }, // sen02Vi
+      { wch: 50 }, // sen02audio
+      { wch: 30 }, // sen03
+      { wch: 30 }, // sen03Vi
+      { wch: 50 }, // sen03audio
+      { wch: 30 }, // sen04
+      { wch: 30 }, // sen04Vi
+      { wch: 50 }, // sen04audio
+    ];
+
+    // Generate buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    return buffer;
+  }
 }
