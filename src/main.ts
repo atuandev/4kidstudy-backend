@@ -17,6 +17,8 @@ async function bootstrap() {
     origin: [
       'http://localhost:3000',
       'https://4kidstudy-frontend.vercel.app',
+      'https://4kidstudy-frontend-git-dev2-atuandev-projects.vercel.app',
+      'https://4kidstudy-frontend-git-dev-atuandev-projects.vercel.app',
     ].filter(Boolean),
     credentials: true,
   });
