@@ -11,14 +11,16 @@ import {
   HttpStatus,
   HttpCode,
   UseInterceptors,
-  UploadedFile,
+  Res,
+  // UploadedFile,
   UploadedFiles,
   BadRequestException,
 } from '@nestjs/common';
 import {
-  FileInterceptor,
+  // FileInterceptor,
   FileFieldsInterceptor,
 } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { ApiConsumes } from '@nestjs/swagger';
 import {
   ApiTags,
@@ -39,7 +41,7 @@ import {
 @ApiTags('flashcards')
 @Controller('flashcards')
 export class FlashcardController {
-  constructor(private readonly flashcardService: FlashcardService) {}
+  constructor(private readonly flashcardService: FlashcardService) { }
 
   @Post()
   @ApiOperation({
@@ -144,6 +146,53 @@ export class FlashcardController {
       excelFile.buffer,
       assetFiles,
     );
+  }
+
+  @Post('check-progress')
+  @ApiOperation({
+    summary: 'Check learning progress for flashcards',
+    description:
+      'Check if flashcards have learning progress that would be reset',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        flashcardIds: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Array of flashcard IDs to check',
+        },
+      },
+      required: ['flashcardIds'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns flashcards with progress information',
+  })
+  @HttpCode(HttpStatus.OK)
+  async checkProgress(@Body() body: { flashcardIds: number[] }) {
+    return this.flashcardService.checkProgress(body.flashcardIds);
+  }
+
+  @Post('check-progress-for-delete/:id')
+  @ApiOperation({
+    summary: 'Check if flashcard has learning progress before delete',
+    description: 'Check if flashcard has learning progress',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Flashcard ID',
+    type: 'number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns progress information for flashcard',
+  })
+  @HttpCode(HttpStatus.OK)
+  async checkFlashcardProgressForDelete(@Param('id', ParseIntPipe) id: number) {
+    return this.flashcardService.checkProgressForDelete(id);
   }
 
   @Get()
@@ -256,6 +305,35 @@ export class FlashcardController {
   })
   async getFlashcardStats(@Query('topicId') topicId?: number) {
     return this.flashcardService.getFlashcardStats(topicId);
+  }
+
+  @Get('export')
+  @ApiOperation({
+    summary: 'Export flashcards to Excel',
+    description: 'Exports flashcards to Excel file (limited to 20 for demo)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async exportFlashcards(@Res() res: Response) {
+    const buffer = await this.flashcardService.exportToExcel();
+
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="flashcards-export.xlsx"',
+      'Content-Length': buffer.length,
+    });
+
+    res.send(buffer);
   }
 
   @Get(':id')

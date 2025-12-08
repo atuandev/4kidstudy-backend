@@ -31,7 +31,7 @@ interface CsvRow {
 
 @Injectable()
 export class ExerciseService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Upload file to Cloudinary
@@ -1026,6 +1026,12 @@ export class ExerciseService {
         const path = normalizeValue(cellValue);
         if (!path) return '';
 
+        // If it's already a URL (http/https), use it directly
+        if (path.startsWith('http://') || path.startsWith('https://')) {
+          return path;
+        }
+
+        // Otherwise, treat as filename and look up in assetMap
         const fileName = extractFileName(path);
         if (!fileName) return '';
 
@@ -1255,5 +1261,129 @@ export class ExerciseService {
       const msg = error instanceof Error ? error.message : String(error);
       throw new BadRequestException(`Failed to parse Excel file: ${msg}`);
     }
+  }
+
+  /**
+   * Export exercises to Excel format
+   * Returns buffer of Excel file
+   */
+  async exportToExcel(lessonId?: number): Promise<Buffer> {
+    // Build query filter
+    const where: any = {};
+    if (lessonId) {
+      where.lessonId = lessonId;
+    }
+
+    // Fetch exercises with options, limit for demo
+    const exercises = await this.prisma.exercise.findMany({
+      where,
+      orderBy: [{ lessonId: 'asc' }, { order: 'asc' }],
+      take: 20, // Limit to 20 for demo
+      include: {
+        options: {
+          orderBy: { order: 'asc' },
+        },
+        lesson: {
+          select: {
+            title: true,
+          },
+        },
+      },
+    });
+
+    // Prepare data for Excel - format depends on exercise type
+    const excelData = exercises.map((exercise) => {
+      const row: any = {
+        type: exercise.type,
+        prompt: exercise.prompt || '',
+        img: exercise.imageUrl || '',
+        audio: exercise.audioUrl || '',
+        targetText: exercise.targetText || '',
+        hintVi: exercise.hintVi || '',
+        hintEn: exercise.hintEn || '',
+      };
+
+      // Get options by isCorrect and order
+      const correctOption = exercise.options.find((opt) => opt.isCorrect);
+      const incorrectOptions = exercise.options.filter((opt) => !opt.isCorrect);
+
+      if (exercise.type === 'SELECT_IMAGE') {
+        // optT: correct image, optF1-3: incorrect images
+        row.optT = correctOption?.imageUrl || '';
+        const incorrects = incorrectOptions.slice(0, 3);
+        row.optF1 = incorrects[0]?.imageUrl || '';
+        row.optF2 = incorrects[1]?.imageUrl || '';
+        row.optF3 = incorrects[2]?.imageUrl || '';
+      } else if (
+        exercise.type === 'MULTIPLE_CHOICE' ||
+        exercise.type === 'LISTENING'
+      ) {
+        // optT: correct text, optF1-3: incorrect texts
+        row.optT = correctOption?.text || '';
+        const incorrects = incorrectOptions.slice(0, 3);
+        row.optF1 = incorrects[0]?.text || '';
+        row.optF2 = incorrects[1]?.text || '';
+        row.optF3 = incorrects[2]?.text || '';
+      } else if (exercise.type === 'MATCHING') {
+        // Group options by matchKey
+        const matchGroups = new Map<string, any[]>();
+        exercise.options.forEach((opt) => {
+          if (opt.matchKey) {
+            if (!matchGroups.has(opt.matchKey)) {
+              matchGroups.set(opt.matchKey, []);
+            }
+            matchGroups.get(opt.matchKey)!.push(opt);
+          }
+        });
+
+        // Convert to "left|right" format
+        const pairs: string[] = [];
+        matchGroups.forEach((group) => {
+          if (group.length >= 2) {
+            const left = group[0].text || group[0].imageUrl || '';
+            const right = group[1].text || group[1].imageUrl || '';
+            pairs.push(`${left}|${right}`);
+          }
+        });
+
+        // Assign to optT, optF1, optF2, optF3
+        row.optT = pairs[0] || '';
+        row.optF1 = pairs[1] || '';
+        row.optF2 = pairs[2] || '';
+        row.optF3 = pairs[3] || '';
+      } else if (exercise.type === 'PRONUNCIATION') {
+        // No options for PRONUNCIATION
+        row.optT = '';
+        row.optF1 = '';
+        row.optF2 = '';
+        row.optF3 = '';
+      }
+
+      return row;
+    });
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Exercises');
+
+    // Set column widths for better readability
+    worksheet['!cols'] = [
+      { wch: 20 }, // type
+      { wch: 40 }, // prompt
+      { wch: 50 }, // img
+      { wch: 50 }, // audio
+      { wch: 30 }, // targetText
+      { wch: 30 }, // hintVi
+      { wch: 30 }, // hintEn
+      { wch: 40 }, // optT
+      { wch: 40 }, // optF1
+      { wch: 40 }, // optF2
+      { wch: 40 }, // optF3
+    ];
+
+    // Generate buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    return buffer;
   }
 }

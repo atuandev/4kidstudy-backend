@@ -5,6 +5,7 @@ export class StreakStatsDataPointDto {
 
 export class StreakStatsResponseDto {
   data: StreakStatsDataPointDto[];
+  gradeData: StreakStatsDataPointDto[];
   totalXP: number;
   days: number;
 }

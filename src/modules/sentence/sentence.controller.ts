@@ -11,6 +11,7 @@ import {
   HttpStatus,
   HttpCode,
   UseInterceptors,
+  Res,
   UploadedFiles,
   BadRequestException,
 } from '@nestjs/common';
@@ -24,6 +25,7 @@ import {
   ApiConsumes,
 } from '@nestjs/swagger';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { SentenceService } from './sentence.service';
 import {
   CreateSentenceImageDto,
@@ -39,7 +41,7 @@ import {
 @ApiTags('sentences')
 @Controller('sentences')
 export class SentenceController {
-  constructor(private readonly sentenceService: SentenceService) {}
+  constructor(private readonly sentenceService: SentenceService) { }
 
   @Get('images')
   @ApiOperation({
@@ -224,6 +226,35 @@ export class SentenceController {
     return this.sentenceService.getSentenceImageById(id);
   }
 
+  @Get('export')
+  @ApiOperation({
+    summary: 'Export sentences to Excel',
+    description: 'Exports sentences to Excel file (limited to 20 for demo)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async exportSentences(@Res() res: Response) {
+    const buffer = await this.sentenceService.exportToExcel();
+
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="sentences-export.xlsx"',
+      'Content-Length': buffer.length,
+    });
+
+    res.send(buffer);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Get sentence by ID',
@@ -276,6 +307,75 @@ export class SentenceController {
     @Body() updateSentenceImageDto: UpdateSentenceImageDto,
   ) {
     return this.sentenceService.updateSentenceImage(id, updateSentenceImageDto);
+  }
+
+  @Post('check-progress')
+  @ApiOperation({
+    summary: 'Check learning progress for sentences',
+    description:
+      'Check if sentences have learning progress that would be reset',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        sentenceIds: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Array of sentence IDs to check',
+        },
+      },
+      required: ['sentenceIds'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns sentences with progress information',
+  })
+  @HttpCode(HttpStatus.OK)
+  async checkProgress(@Body() body: { sentenceIds: number[] }) {
+    return this.sentenceService.checkProgress(body.sentenceIds);
+  }
+
+  @Post('images/check-progress-for-delete/:id')
+  @ApiOperation({
+    summary: 'Check if sentence image has learning progress before delete',
+    description:
+      'Check if sentence image or its sentences have learning progress',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Sentence image ID',
+    type: 'number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns progress information for sentence image',
+  })
+  @HttpCode(HttpStatus.OK)
+  async checkSentenceImageProgressForDelete(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.sentenceService.checkSentenceImageProgressForDelete(id);
+  }
+
+  @Post('check-progress-for-delete/:id')
+  @ApiOperation({
+    summary: 'Check if sentence has learning progress before delete',
+    description: 'Check if sentence has learning progress',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Sentence ID',
+    type: 'number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns progress information for sentence',
+  })
+  @HttpCode(HttpStatus.OK)
+  async checkSentenceProgressForDelete(@Param('id', ParseIntPipe) id: number) {
+    return this.sentenceService.checkSentenceProgressForDelete(id);
   }
 
   @Put(':id')

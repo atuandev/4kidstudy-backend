@@ -23,7 +23,7 @@ cloudinary.config({
 
 @Injectable()
 export class FlashcardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Upload file to Cloudinary
@@ -161,6 +161,57 @@ export class FlashcardService {
     });
   }
 
+  /**
+   * Export flashcards to Excel format
+   * Returns buffer of Excel file
+   */
+  async exportToExcel(): Promise<Buffer> {
+    // Fetch flashcards with limit for demo
+    const flashcards = await this.prisma.flashcard.findMany({
+      where: { isActive: true },
+      orderBy: [{ topicId: 'asc' }, { order: 'asc' }],
+      take: 20, // Limit to 20 for demo
+      include: {
+        topic: {
+          select: {
+            title: true,
+          },
+        },
+      },
+    });
+
+    // Prepare data for Excel
+    const excelData = flashcards.map((fc) => ({
+      term: fc.term,
+      phonetic: fc.phonetic || '',
+      meaningVi: fc.meaningVi,
+      ExEn: fc.exampleEn || '',
+      ExVi: fc.exampleVi || '',
+      img: fc.imageUrl || '',
+      audio: fc.audioUrl || '',
+    }));
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Flashcards');
+
+    // Set column widths for better readability
+    worksheet['!cols'] = [
+      { wch: 15 }, // term
+      { wch: 15 }, // phonetic
+      { wch: 20 }, // meaningVi
+      { wch: 30 }, // ExEn
+      { wch: 30 }, // ExVi
+      { wch: 50 }, // img (URL)
+      { wch: 50 }, // audio (URL)
+    ];
+
+    // Generate buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    return buffer;
+  }
+
   async findAll(topicId?: number, isActive?: boolean, search?: string) {
     const where: Prisma.FlashcardWhereInput = {};
 
@@ -249,6 +300,40 @@ export class FlashcardService {
     return flashcard;
   }
 
+  async checkProgress(flashcardIds: number[]) {
+    // Get all flashcards with their progress
+    const flashcards = await this.prisma.flashcard.findMany({
+      where: {
+        id: { in: flashcardIds },
+      },
+      select: {
+        id: true,
+        term: true,
+        progress: {
+          where: {
+            contentType: 'FLASHCARD',
+          },
+          select: {
+            id: true,
+            isMastered: true,
+          },
+        },
+      },
+    });
+
+    // Filter only flashcards that have progress
+    const flashcardsWithProgress = flashcards
+      .filter((fc) => fc.progress.length > 0)
+      .map((fc) => ({
+        id: fc.id,
+        term: fc.term,
+        progressCount: fc.progress.length,
+        hasMastered: fc.progress.some((p) => p.isMastered),
+      }));
+
+    return flashcardsWithProgress;
+  }
+
   async update(id: number, updateFlashcardDto: UpdateFlashcardDto) {
     // Check if flashcard exists
     await this.findOne(id);
@@ -266,9 +351,22 @@ export class FlashcardService {
       }
     }
 
+    // Extract resetProgress from DTO and remove it before updating flashcard
+    const { resetProgress, ...flashcardData } = updateFlashcardDto;
+
+    // If resetProgress is true, delete all learning progress for this flashcard
+    if (resetProgress) {
+      await this.prisma.learningProgress.deleteMany({
+        where: {
+          flashcardId: id,
+          contentType: 'FLASHCARD',
+        },
+      });
+    }
+
     return this.prisma.flashcard.update({
       where: { id },
-      data: updateFlashcardDto,
+      data: flashcardData,
       include: {
         topic: {
           select: {
@@ -281,22 +379,74 @@ export class FlashcardService {
     });
   }
 
-  async remove(id: number) {
-    // Check if flashcard exists
-    await this.findOne(id);
-
-    return this.prisma.flashcard.delete({
+  async checkProgressForDelete(id: number) {
+    const flashcard = await this.prisma.flashcard.findUnique({
       where: { id },
       include: {
-        topic: {
-          select: {
-            id: true,
-            title: true,
-            grade: true,
+        progress: {
+          where: {
+            contentType: 'FLASHCARD',
           },
         },
       },
     });
+
+    if (!flashcard) {
+      throw new NotFoundException(`Flashcard with ID ${id} not found`);
+    }
+
+    return {
+      id: flashcard.id,
+      term: flashcard.term,
+      hasProgress: flashcard.progress.length > 0,
+      progressCount: flashcard.progress.length,
+      masteredCount: flashcard.progress.filter((p) => p.isMastered).length,
+    };
+  }
+
+  async remove(id: number) {
+    // Check if flashcard exists
+    await this.findOne(id);
+
+    // Check if this flashcard has any learning progress
+    const progressCount = await this.prisma.learningProgress.count({
+      where: { flashcardId: id },
+    });
+
+    const hasProgress = progressCount > 0;
+
+    if (hasProgress) {
+      // Soft delete - set isActive = false to preserve learning data
+      const updated = await this.prisma.flashcard.update({
+        where: { id },
+        data: { isActive: false },
+        include: {
+          topic: {
+            select: {
+              id: true,
+              title: true,
+              grade: true,
+            },
+          },
+        },
+      });
+      return { flashcard: updated, hasProgress: true, deleted: false };
+    } else {
+      // Hard delete - no learning data to preserve
+      const deleted = await this.prisma.flashcard.delete({
+        where: { id },
+        include: {
+          topic: {
+            select: {
+              id: true,
+              title: true,
+              grade: true,
+            },
+          },
+        },
+      });
+      return { flashcard: deleted, hasProgress: false, deleted: true };
+    }
   }
 
   async getFlashcardStats(topicId?: number) {
@@ -445,7 +595,7 @@ export class FlashcardService {
       const extractFileName = (path: string): string => {
         if (!path || typeof path !== 'string') return '';
         const normalized = path.trim();
-        if (normalized === '\\n' || normalized === '\n') return '';
+        if (!normalized) return ''; // Handles empty strings and whitespace-only
         return normalized.split('\\').pop()?.split('/').pop() || '';
       };
 
@@ -454,7 +604,7 @@ export class FlashcardService {
         if (value === undefined || value === null) return '';
         if (typeof value === 'string') {
           const s = value.trim();
-          if (s === '\n' || s === '\n') return '';
+          if (!s) return ''; // Handles empty strings and whitespace-only
           return s;
         }
         if (typeof value === 'object') return '';
@@ -470,6 +620,12 @@ export class FlashcardService {
         const path = normalizeValue(cellValue);
         if (!path) return '';
 
+        // If it's already a URL (http/https), use it directly
+        if (path.startsWith('http://') || path.startsWith('https://')) {
+          return path;
+        }
+
+        // Otherwise, treat as filename and look up in assetMap
         const fileName = extractFileName(path);
         if (!fileName) return '';
 

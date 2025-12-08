@@ -20,7 +20,7 @@ import {
  */
 @Injectable()
 export class LearningProgressService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Get or create learning progress for a user and content
@@ -55,24 +55,24 @@ export class LearningProgressService {
       include: {
         flashcard: flashcardId
           ? {
-              select: {
-                id: true,
-                term: true,
-                meaningVi: true,
-                imageUrl: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              term: true,
+              meaningVi: true,
+              imageUrl: true,
+              audioUrl: true,
+            },
+          }
           : false,
         sentence: sentenceId
           ? {
-              select: {
-                id: true,
-                text: true,
-                meaningVi: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              text: true,
+              meaningVi: true,
+              audioUrl: true,
+            },
+          }
           : false,
       },
     });
@@ -113,24 +113,24 @@ export class LearningProgressService {
       include: {
         flashcard: flashcardId
           ? {
-              select: {
-                id: true,
-                term: true,
-                meaningVi: true,
-                imageUrl: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              term: true,
+              meaningVi: true,
+              imageUrl: true,
+              audioUrl: true,
+            },
+          }
           : false,
         sentence: sentenceId
           ? {
-              select: {
-                id: true,
-                text: true,
-                meaningVi: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              text: true,
+              meaningVi: true,
+              audioUrl: true,
+            },
+          }
           : false,
       },
     });
@@ -182,24 +182,24 @@ export class LearningProgressService {
       include: {
         flashcard: flashcardId
           ? {
-              select: {
-                id: true,
-                term: true,
-                meaningVi: true,
-                imageUrl: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              term: true,
+              meaningVi: true,
+              imageUrl: true,
+              audioUrl: true,
+            },
+          }
           : false,
         sentence: sentenceId
           ? {
-              select: {
-                id: true,
-                text: true,
-                meaningVi: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              text: true,
+              meaningVi: true,
+              audioUrl: true,
+            },
+          }
           : false,
       },
     });
@@ -356,24 +356,24 @@ export class LearningProgressService {
       include: {
         flashcard: progress.flashcardId
           ? {
-              select: {
-                id: true,
-                term: true,
-                meaningVi: true,
-                imageUrl: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              term: true,
+              meaningVi: true,
+              imageUrl: true,
+              audioUrl: true,
+            },
+          }
           : false,
         sentence: progress.sentenceId
           ? {
-              select: {
-                id: true,
-                text: true,
-                meaningVi: true,
-                audioUrl: true,
-              },
-            }
+            select: {
+              id: true,
+              text: true,
+              meaningVi: true,
+              audioUrl: true,
+            },
+          }
           : false,
       },
     });
@@ -436,33 +436,33 @@ export class LearningProgressService {
   ): LearningProgressResponseDto {
     const flashcard = progress.flashcard
       ? {
-          id: progress.flashcard.id,
-          term: progress.flashcard.term,
-          meaningVi: progress.flashcard.meaningVi,
-          imageUrl: progress.flashcard.imageUrl ?? undefined,
-          audioUrl: progress.flashcard.audioUrl ?? undefined,
-          ...(progress.flashcard.topicId && {
-            topicId: progress.flashcard.topicId,
-          }),
-          ...(progress.flashcard.topic && {
-            topic: progress.flashcard.topic,
-          }),
-        }
+        id: progress.flashcard.id,
+        term: progress.flashcard.term,
+        meaningVi: progress.flashcard.meaningVi,
+        imageUrl: progress.flashcard.imageUrl ?? undefined,
+        audioUrl: progress.flashcard.audioUrl ?? undefined,
+        ...(progress.flashcard.topicId && {
+          topicId: progress.flashcard.topicId,
+        }),
+        ...(progress.flashcard.topic && {
+          topic: progress.flashcard.topic,
+        }),
+      }
       : undefined;
 
     const sentence = progress.sentence
       ? {
-          id: progress.sentence.id,
-          text: progress.sentence.text,
-          meaningVi: progress.sentence.meaningVi ?? undefined,
-          audioUrl: progress.sentence.audioUrl ?? undefined,
-          ...(progress.sentence.sentenceImageId && {
-            sentenceImageId: progress.sentence.sentenceImageId,
-          }),
-          ...(progress.sentence.sentenceImage && {
-            sentenceImage: progress.sentence.sentenceImage,
-          }),
-        }
+        id: progress.sentence.id,
+        text: progress.sentence.text,
+        meaningVi: progress.sentence.meaningVi ?? undefined,
+        audioUrl: progress.sentence.audioUrl ?? undefined,
+        ...(progress.sentence.sentenceImageId && {
+          sentenceImageId: progress.sentence.sentenceImageId,
+        }),
+        ...(progress.sentence.sentenceImage && {
+          sentenceImage: progress.sentence.sentenceImage,
+        }),
+      }
       : undefined;
 
     return {
@@ -499,31 +499,30 @@ export class LearningProgressService {
     lastReviewedFlashcardIndex?: number;
     lastReviewedSentenceIndex?: number;
   }> {
-    // Count total flashcards in topic
-    const totalFlashcards = await this.prisma.flashcard.count({
-      where: { topicId },
+    // Get all active flashcard IDs in topic first
+    const activeFlashcards = await this.prisma.flashcard.findMany({
+      where: { topicId, isActive: true },
+      select: { id: true },
     });
+    const activeFlashcardIds = activeFlashcards.map((f) => f.id);
+    const totalFlashcards = activeFlashcardIds.length;
 
-    // Count mastered flashcards by user in this topic (only isMastered = true)
+    // Count mastered flashcards by user in this topic (only isMastered = true AND flashcard is active)
     const reviewedFlashcards = await this.prisma.learningProgress.count({
       where: {
         userId,
         contentType: LearningContentType.FLASHCARD,
-        isMastered: true, // Only count mastered flashcards
-        flashcard: {
-          topicId,
-        },
+        isMastered: true,
+        flashcardId: { in: activeFlashcardIds },
       },
     });
 
-    // Get all reviewed flashcards to find the one with highest index
+    // Get all reviewed flashcards to find the one with highest index (only active ones)
     const reviewedFlashcardsList = await this.prisma.learningProgress.findMany({
       where: {
         userId,
         contentType: LearningContentType.FLASHCARD,
-        flashcard: {
-          topicId,
-        },
+        flashcardId: { in: activeFlashcardIds },
       },
       include: {
         flashcard: true,
@@ -534,7 +533,7 @@ export class LearningProgressService {
     let lastReviewedFlashcardIndex: number | undefined = undefined;
     if (reviewedFlashcardsList.length > 0) {
       const allFlashcards = await this.prisma.flashcard.findMany({
-        where: { topicId },
+        where: { topicId, isActive: true },
         orderBy: { order: 'asc' },
         select: { id: true, order: true },
       });
@@ -557,39 +556,36 @@ export class LearningProgressService {
       }
     }
 
-    // Count total sentences in topic
-    const totalSentences = await this.prisma.sentence.count({
+    // Get all active sentence IDs in topic first
+    const activeSentences = await this.prisma.sentence.findMany({
       where: {
+        isActive: true,
         sentenceImage: {
           topicId,
+          isActive: true,
         },
       },
+      select: { id: true },
     });
+    const activeSentenceIds = activeSentences.map((s) => s.id);
+    const totalSentences = activeSentenceIds.length;
 
-    // Count mastered sentences by user in this topic (only isMastered = true)
+    // Count mastered sentences by user in this topic (only isMastered = true AND sentence is active)
     const reviewedSentences = await this.prisma.learningProgress.count({
       where: {
         userId,
         contentType: LearningContentType.SENTENCE,
-        isMastered: true, // Only count mastered sentences
-        sentence: {
-          sentenceImage: {
-            topicId,
-          },
-        },
+        isMastered: true,
+        sentenceId: { in: activeSentenceIds },
       },
     });
 
-    // Get all reviewed sentences to find the one with highest index
+    // Get all reviewed sentences to find the one with highest index (only active ones)
     const reviewedSentencesList = await this.prisma.learningProgress.findMany({
       where: {
         userId,
         contentType: LearningContentType.SENTENCE,
-        sentence: {
-          sentenceImage: {
-            topicId,
-          },
-        },
+        sentenceId: { in: activeSentenceIds },
       },
       include: {
         sentence: {
@@ -604,7 +600,7 @@ export class LearningProgressService {
     let lastReviewedSentenceIndex: number | undefined = undefined;
     if (reviewedSentencesList.length > 0) {
       const allSentenceImages = await this.prisma.sentenceImage.findMany({
-        where: { topicId },
+        where: { topicId, isActive: true },
         orderBy: { order: 'asc' },
         select: { id: true, order: true },
       });
