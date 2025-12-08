@@ -681,6 +681,12 @@ export class SentenceService {
         const normalized = normalizeValue(filename);
         if (!normalized) return null;
 
+        // If it's already a URL (http/https), use it directly
+        if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+          return normalized;
+        }
+
+        // Otherwise, treat as filename and look up in assetMap
         // Extract just the filename if path is provided
         const name = normalized.split(/[/\\]/).pop() || normalized;
 

@@ -620,6 +620,12 @@ export class FlashcardService {
         const path = normalizeValue(cellValue);
         if (!path) return '';
 
+        // If it's already a URL (http/https), use it directly
+        if (path.startsWith('http://') || path.startsWith('https://')) {
+          return path;
+        }
+
+        // Otherwise, treat as filename and look up in assetMap
         const fileName = extractFileName(path);
         if (!fileName) return '';
 
