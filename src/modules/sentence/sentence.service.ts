@@ -393,29 +393,108 @@ export class SentenceService {
   }
 
   /**
-   * Soft delete a sentence image (set isActive = false)
+   * Delete a sentence image (hard delete if no progress, soft delete if has progress)
    */
-  async deleteSentenceImage(id: number): Promise<SentenceImageWithSentences> {
-    await this.getSentenceImageById(id);
-    return this.prisma.sentenceImage.update({
-      where: { id },
-      data: { isActive: false },
-      include: {
-        sentences: true,
-        topic: true,
-      },
-    });
+  async deleteSentenceImage(id: number): Promise<{
+    sentenceImage: SentenceImageWithSentences;
+    hasProgress: boolean;
+  }> {
+    const sentenceImage = await this.getSentenceImageById(id);
+
+    // Check if any sentences have learning progress
+    const totalProgress = sentenceImage.sentences.reduce(
+      (sum, sentence) => sum + (sentence.progress?.length ?? 0),
+      0,
+    );
+
+    const hasProgress = totalProgress > 0;
+
+    if (hasProgress) {
+      // Soft delete - set isActive = false to preserve learning data
+      const updated = await this.prisma.sentenceImage.update({
+        where: { id },
+        data: { isActive: false },
+        include: {
+          sentences: {
+            orderBy: { order: 'asc' },
+            include: {
+              progress: true,
+            },
+          },
+          topic: true,
+        },
+      });
+      return { sentenceImage: updated, hasProgress: true };
+    } else {
+      // Hard delete - no learning data to preserve
+      const deleted = await this.prisma.sentenceImage.delete({
+        where: { id },
+        include: {
+          sentences: {
+            orderBy: { order: 'asc' },
+            include: {
+              progress: true,
+            },
+          },
+          topic: true,
+        },
+      });
+      return { sentenceImage: deleted, hasProgress: false };
+    }
   }
 
   /**
-   * Soft delete a sentence (set isActive = false)
+   * Delete a sentence (hard delete if no progress, soft delete if has progress)
    */
-  async deleteSentence(id: number): Promise<Sentence> {
-    await this.getSentenceById(id);
-    return this.prisma.sentence.update({
+  async deleteSentence(id: number): Promise<{
+    sentence: Sentence & { progress?: any[] };
+    hasProgress: boolean;
+  }> {
+    const sentence = await this.prisma.sentence.findUnique({
       where: { id },
-      data: { isActive: false },
+      include: {
+        progress: {
+          where: {
+            contentType: 'SENTENCE',
+          },
+        },
+      },
     });
+
+    if (!sentence) {
+      throw new NotFoundException(`Sentence with ID ${id} not found`);
+    }
+
+    const hasProgress = sentence.progress.length > 0;
+
+    if (hasProgress) {
+      // Soft delete - set isActive = false to preserve learning data
+      const updated = await this.prisma.sentence.update({
+        where: { id },
+        data: { isActive: false },
+        include: {
+          progress: {
+            where: {
+              contentType: 'SENTENCE',
+            },
+          },
+        },
+      });
+      return { sentence: updated, hasProgress: true };
+    } else {
+      // Hard delete - no learning data to preserve
+      const deleted = await this.prisma.sentence.delete({
+        where: { id },
+        include: {
+          progress: {
+            where: {
+              contentType: 'SENTENCE',
+            },
+          },
+        },
+      });
+      return { sentence: deleted, hasProgress: false };
+    }
   }
 
   /**
@@ -445,9 +524,9 @@ export class SentenceService {
     return sentences.map((sentence) => ({
       id: sentence.id,
       text: sentence.text,
-      hasProgress: sentence.progress.length > 0,
-      progressCount: sentence.progress.length,
-      masteredCount: sentence.progress.filter((p) => p.isMastered).length,
+      hasProgress: (sentence.progress?.length ?? 0) > 0,
+      progressCount: sentence.progress?.length ?? 0,
+      masteredCount: sentence.progress?.filter((p) => p.isMastered).length ?? 0,
     }));
   }
 
@@ -475,12 +554,12 @@ export class SentenceService {
     }
 
     const totalProgress = sentenceImage.sentences.reduce(
-      (sum, sentence) => sum + sentence.progress.length,
+      (sum, sentence) => sum + (sentence.progress?.length ?? 0),
       0,
     );
     const totalMastered = sentenceImage.sentences.reduce(
       (sum, sentence) =>
-        sum + sentence.progress.filter((p) => p.isMastered).length,
+        sum + (sentence.progress?.filter((p) => p.isMastered).length ?? 0),
       0,
     );
 
@@ -515,9 +594,9 @@ export class SentenceService {
     return {
       id: sentence.id,
       text: sentence.text,
-      hasProgress: sentence.progress.length > 0,
-      progressCount: sentence.progress.length,
-      masteredCount: sentence.progress.filter((p) => p.isMastered).length,
+      hasProgress: (sentence.progress?.length ?? 0) > 0,
+      progressCount: sentence.progress?.length ?? 0,
+      masteredCount: sentence.progress?.filter((p) => p.isMastered).length ?? 0,
     };
   }
 
