@@ -25,9 +25,9 @@ export class ChatService {
     this.genAI = new GoogleGenerativeAI(apiKey);
 
     // Khởi tạo model với system instruction
-    // Sử dụng gemini-2.0-flash - nhanh, ổn định và có sẵn
+    // Sử dụng gemini-2.5-flash - nhanh, ổn định và có sẵn
     this.model = this.genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       systemInstruction: `You are 'Gem', a friendly AI tutor for elementary students (grades 1-5) learning English.
 
 LANGUAGE RULES:
